@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { CalendarDays, Droplets, Leaf, Plus, Search, TriangleAlert, Wheat } from 'lucide-react';
+import { CalendarDays, Clock, Droplets, Leaf, Plus, Search, Trash2, TriangleAlert, Users, Wheat } from 'lucide-react';
 import './styles.css';
 
 const today = new Date();
@@ -26,6 +26,14 @@ const seedTasks = [
   { id: crypto.randomUUID(), title: 'C02补土并翻松', owner: '园艺管家', due: iso(4), done: false }
 ];
 
+const seedSchedules = [
+  { id: crypto.randomUUID(), date: iso(0), weekday: '周四', volunteer: '李雨晴', phone: '13800007777', duty: '浇水', time: '09:00-11:00', note: '重点关注A区薄荷' },
+  { id: crypto.randomUUID(), date: iso(1), weekday: '周五', volunteer: '张明远', phone: '13900008888', duty: '巡检', time: '16:00-18:00', note: '检查虫害情况' },
+  { id: crypto.randomUUID(), date: iso(2), weekday: '周六', volunteer: '王建国', phone: '13700009999', duty: '补土', time: '08:00-10:00', note: 'C02区需要补土约5袋' },
+  { id: crypto.randomUUID(), date: iso(3), weekday: '周日', volunteer: '刘芳', phone: '13600001111', duty: '浇水', time: '09:00-11:00', note: '' },
+  { id: crypto.randomUUID(), date: iso(5), weekday: '周二', volunteer: '陈志豪', phone: '13500002222', duty: '巡检', time: '17:00-19:00', note: '检查滴灌系统' }
+];
+
 function useStoredState(key, initialValue) {
   const [value, setValue] = useState(() => {
     const raw = localStorage.getItem(key);
@@ -40,12 +48,16 @@ function useStoredState(key, initialValue) {
 }
 
 function App() {
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [beds, setBeds] = useStoredState('zfl-1-beds', seedBeds);
   const [harvests, setHarvests] = useStoredState('zfl-1-harvests', seedHarvests);
   const [tasks, setTasks] = useStoredState('zfl-1-tasks', seedTasks);
+  const [schedules, setSchedules] = useStoredState('zfl-1-schedules', seedSchedules);
   const [query, setQuery] = useState('');
+  const [scheduleDateFilter, setScheduleDateFilter] = useState('');
   const [bedForm, setBedForm] = useState({ name: '', crop: '', adopter: '', phone: '', area: '', status: '认养中', nextWater: iso(2), warning: '' });
   const [harvestForm, setHarvestForm] = useState({ bed: '', crop: '', weight: '', date: iso(0), note: '' });
+  const [scheduleForm, setScheduleForm] = useState({ date: iso(0), weekday: '', volunteer: '', phone: '', duty: '浇水', time: '09:00-11:00', note: '' });
 
   const weekWater = beds.filter((bed) => {
     const days = (new Date(bed.nextWater) - today) / 86400000;
@@ -74,6 +86,52 @@ function App() {
 
   const harvestOptions = useMemo(() => beds.map((bed) => bed.name), [beds]);
 
+  const getWeekday = (dateStr) => {
+    const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    return weekdays[new Date(dateStr).getDay()];
+  };
+
+  const filteredSchedules = useMemo(() => {
+    let result = [...schedules];
+    if (scheduleDateFilter) {
+      result = result.filter((s) => s.date === scheduleDateFilter);
+    }
+    return result.sort((a, b) => new Date(a.date) - new Date(b.date));
+  }, [schedules, scheduleDateFilter]);
+
+  const addSchedule = (event) => {
+    event.preventDefault();
+    if (!scheduleForm.volunteer.trim() || !scheduleForm.date) return;
+    const weekday = getWeekday(scheduleForm.date);
+    setSchedules([{ id: crypto.randomUUID(), ...scheduleForm, weekday }, ...schedules]);
+    setScheduleForm({ date: iso(0), weekday: '', volunteer: '', phone: '', duty: '浇水', time: '09:00-11:00', note: '' });
+  };
+
+  const deleteSchedule = (id) => {
+    setSchedules(schedules.filter((s) => s.id !== id));
+  };
+
+  const updateScheduleDate = (dateStr) => {
+    setScheduleForm({ ...scheduleForm, date: dateStr, weekday: getWeekday(dateStr) });
+  };
+
+  const scheduleStats = useMemo(() => {
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay());
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+
+    const thisWeek = schedules.filter((s) => {
+      const d = new Date(s.date);
+      return d >= weekStart && d <= weekEnd;
+    });
+    const byDuty = thisWeek.reduce((acc, s) => {
+      acc[s.duty] = (acc[s.duty] || 0) + 1;
+      return acc;
+    }, {});
+    return { total: thisWeek.length, byDuty };
+  }, [schedules]);
+
   return (
     <main>
       <header className="hero">
@@ -88,83 +146,177 @@ function App() {
         </div>
       </header>
 
-      <section className="dashboard">
-        <article>
-          <h2>本周浇水</h2>
-          {weekWater.map((bed) => <button className="listButton" key={bed.id} onClick={() => advanceWater(bed.id)}>{bed.name}<span>{bed.nextWater}</span></button>)}
-        </article>
-        <article>
-          <h2>最近采摘</h2>
-          {harvests.slice(0, 4).map((item) => <p className="row" key={item.id}><Wheat size={16} />{item.crop}{item.weight}<span>{item.date}</span></p>)}
-        </article>
-        <article>
-          <h2>异常提醒</h2>
-          {warnings.length ? warnings.map((bed) => <p className="row alert" key={bed.id}><TriangleAlert size={16} />{bed.name}<span>{bed.warning}</span></p>) : <p className="muted">暂无异常</p>}
-        </article>
-      </section>
+      <nav className="tabs">
+        <button className={activeTab === 'dashboard' ? 'tab active' : 'tab'} onClick={() => setActiveTab('dashboard')}>
+          <Leaf size={16} />菜园总览
+        </button>
+        <button className={activeTab === 'schedules' ? 'tab active' : 'tab'} onClick={() => setActiveTab('schedules')}>
+          <Users size={16} />志愿者排班
+        </button>
+      </nav>
 
-      <section className="workspace">
-        <form onSubmit={addBed} className="panel">
-          <h2><Plus size={18} />新增菜畦</h2>
-          <input placeholder="菜畦名称" value={bedForm.name} onChange={(e) => setBedForm({ ...bedForm, name: e.target.value })} />
-          <input placeholder="作物" value={bedForm.crop} onChange={(e) => setBedForm({ ...bedForm, crop: e.target.value })} />
-          <div className="grid2">
-            <input placeholder="认养人" value={bedForm.adopter} onChange={(e) => setBedForm({ ...bedForm, adopter: e.target.value })} />
-            <input placeholder="手机号" value={bedForm.phone} onChange={(e) => setBedForm({ ...bedForm, phone: e.target.value })} />
-            <input placeholder="面积" value={bedForm.area} onChange={(e) => setBedForm({ ...bedForm, area: e.target.value })} />
-            <input type="date" value={bedForm.nextWater} onChange={(e) => setBedForm({ ...bedForm, nextWater: e.target.value })} />
-          </div>
-          <select value={bedForm.status} onChange={(e) => setBedForm({ ...bedForm, status: e.target.value })}>
-            <option>认养中</option>
-            <option>空闲</option>
-            <option>暂停维护</option>
-          </select>
-          <input placeholder="异常提醒" value={bedForm.warning} onChange={(e) => setBedForm({ ...bedForm, warning: e.target.value })} />
-          <button>保存菜畦</button>
-        </form>
+      {activeTab === 'dashboard' && (
+        <>
+          <section className="dashboard">
+            <article>
+              <h2>本周浇水</h2>
+              {weekWater.map((bed) => <button className="listButton" key={bed.id} onClick={() => advanceWater(bed.id)}>{bed.name}<span>{bed.nextWater}</span></button>)}
+            </article>
+            <article>
+              <h2>最近采摘</h2>
+              {harvests.slice(0, 4).map((item) => <p className="row" key={item.id}><Wheat size={16} />{item.crop}{item.weight}<span>{item.date}</span></p>)}
+            </article>
+            <article>
+              <h2>异常提醒</h2>
+              {warnings.length ? warnings.map((bed) => <p className="row alert" key={bed.id}><TriangleAlert size={16} />{bed.name}<span>{bed.warning}</span></p>) : <p className="muted">暂无异常</p>}
+            </article>
+          </section>
 
-        <div className="panel wide">
-          <div className="toolbar">
-            <h2>菜畦档案</h2>
-            <label><Search size={16} /><input placeholder="搜索名称/认养人/手机" value={query} onChange={(e) => setQuery(e.target.value)} /></label>
-          </div>
-          <div className="cards">
-            {filteredBeds.map((bed) => (
-              <article className="bedCard" key={bed.id}>
-                <strong>{bed.name}</strong>
-                <span>{bed.crop}</span>
-                <p>{bed.adopter || '待认养'} · {bed.area} · {bed.status}</p>
-                <p><CalendarDays size={15} />下次浇水 {bed.nextWater}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
+          <section className="workspace">
+            <form onSubmit={addBed} className="panel">
+              <h2><Plus size={18} />新增菜畦</h2>
+              <input placeholder="菜畦名称" value={bedForm.name} onChange={(e) => setBedForm({ ...bedForm, name: e.target.value })} />
+              <input placeholder="作物" value={bedForm.crop} onChange={(e) => setBedForm({ ...bedForm, crop: e.target.value })} />
+              <div className="grid2">
+                <input placeholder="认养人" value={bedForm.adopter} onChange={(e) => setBedForm({ ...bedForm, adopter: e.target.value })} />
+                <input placeholder="手机号" value={bedForm.phone} onChange={(e) => setBedForm({ ...bedForm, phone: e.target.value })} />
+                <input placeholder="面积" value={bedForm.area} onChange={(e) => setBedForm({ ...bedForm, area: e.target.value })} />
+                <input type="date" value={bedForm.nextWater} onChange={(e) => setBedForm({ ...bedForm, nextWater: e.target.value })} />
+              </div>
+              <select value={bedForm.status} onChange={(e) => setBedForm({ ...bedForm, status: e.target.value })}>
+                <option>认养中</option>
+                <option>空闲</option>
+                <option>暂停维护</option>
+              </select>
+              <input placeholder="异常提醒" value={bedForm.warning} onChange={(e) => setBedForm({ ...bedForm, warning: e.target.value })} />
+              <button>保存菜畦</button>
+            </form>
 
-      <section className="workspace bottom">
-        <form onSubmit={addHarvest} className="panel">
-          <h2>新增采摘记录</h2>
-          <select value={harvestForm.bed} onChange={(e) => setHarvestForm({ ...harvestForm, bed: e.target.value })}>
-            <option value="">选择菜畦</option>
-            {harvestOptions.map((name) => <option key={name}>{name}</option>)}
-          </select>
-          <input placeholder="采摘作物" value={harvestForm.crop} onChange={(e) => setHarvestForm({ ...harvestForm, crop: e.target.value })} />
-          <input placeholder="重量" value={harvestForm.weight} onChange={(e) => setHarvestForm({ ...harvestForm, weight: e.target.value })} />
-          <input type="date" value={harvestForm.date} onChange={(e) => setHarvestForm({ ...harvestForm, date: e.target.value })} />
-          <input placeholder="备注" value={harvestForm.note} onChange={(e) => setHarvestForm({ ...harvestForm, note: e.target.value })} />
-          <button>保存采摘</button>
-        </form>
-        <div className="panel">
-          <h2>待处理事项</h2>
-          {tasks.map((task) => (
-            <label className="task" key={task.id}>
-              <input type="checkbox" checked={task.done} onChange={() => toggleTask(task.id)} />
-              <span className={task.done ? 'done' : ''}>{task.title}</span>
-              <small>{task.owner} · {task.due}</small>
-            </label>
-          ))}
-        </div>
-      </section>
+            <div className="panel wide">
+              <div className="toolbar">
+                <h2>菜畦档案</h2>
+                <label><Search size={16} /><input placeholder="搜索名称/认养人/手机" value={query} onChange={(e) => setQuery(e.target.value)} /></label>
+              </div>
+              <div className="cards">
+                {filteredBeds.map((bed) => (
+                  <article className="bedCard" key={bed.id}>
+                    <strong>{bed.name}</strong>
+                    <span>{bed.crop}</span>
+                    <p>{bed.adopter || '待认养'} · {bed.area} · {bed.status}</p>
+                    <p><CalendarDays size={15} />下次浇水 {bed.nextWater}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="workspace bottom">
+            <form onSubmit={addHarvest} className="panel">
+              <h2>新增采摘记录</h2>
+              <select value={harvestForm.bed} onChange={(e) => setHarvestForm({ ...harvestForm, bed: e.target.value })}>
+                <option value="">选择菜畦</option>
+                {harvestOptions.map((name) => <option key={name}>{name}</option>)}
+              </select>
+              <input placeholder="采摘作物" value={harvestForm.crop} onChange={(e) => setHarvestForm({ ...harvestForm, crop: e.target.value })} />
+              <input placeholder="重量" value={harvestForm.weight} onChange={(e) => setHarvestForm({ ...harvestForm, weight: e.target.value })} />
+              <input type="date" value={harvestForm.date} onChange={(e) => setHarvestForm({ ...harvestForm, date: e.target.value })} />
+              <input placeholder="备注" value={harvestForm.note} onChange={(e) => setHarvestForm({ ...harvestForm, note: e.target.value })} />
+              <button>保存采摘</button>
+            </form>
+            <div className="panel">
+              <h2>待处理事项</h2>
+              {tasks.map((task) => (
+                <label className="task" key={task.id}>
+                  <input type="checkbox" checked={task.done} onChange={() => toggleTask(task.id)} />
+                  <span className={task.done ? 'done' : ''}>{task.title}</span>
+                  <small>{task.owner} · {task.due}</small>
+                </label>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
+
+      {activeTab === 'schedules' && (
+        <>
+          <section className="dashboard">
+            <article>
+              <h2>本周排班</h2>
+              <p className="statNumber">{scheduleStats.total}<span>人次</span></p>
+            </article>
+            <article>
+              <h2>浇水值班</h2>
+              <p className="statNumber">{scheduleStats.byDuty['浇水'] || 0}<span>人次</span></p>
+            </article>
+            <article>
+              <h2>巡检安排</h2>
+              <p className="statNumber">{scheduleStats.byDuty['巡检'] || 0}<span>人次</span></p>
+            </article>
+          </section>
+
+          <section className="workspace">
+            <form onSubmit={addSchedule} className="panel">
+              <h2><Plus size={18} />新增排班</h2>
+              <input type="date" value={scheduleForm.date} onChange={(e) => updateScheduleDate(e.target.value)} />
+              <input placeholder="星期（自动填充）" value={scheduleForm.weekday} disabled style={{ background: '#f4f7f1' }} />
+              <div className="grid2">
+                <input placeholder="志愿者姓名" value={scheduleForm.volunteer} onChange={(e) => setScheduleForm({ ...scheduleForm, volunteer: e.target.value })} />
+                <input placeholder="联系电话" value={scheduleForm.phone} onChange={(e) => setScheduleForm({ ...scheduleForm, phone: e.target.value })} />
+              </div>
+              <select value={scheduleForm.duty} onChange={(e) => setScheduleForm({ ...scheduleForm, duty: e.target.value })}>
+                <option>浇水</option>
+                <option>补土</option>
+                <option>巡检</option>
+              </select>
+              <select value={scheduleForm.time} onChange={(e) => setScheduleForm({ ...scheduleForm, time: e.target.value })}>
+                <option>08:00-10:00</option>
+                <option>09:00-11:00</option>
+                <option>10:00-12:00</option>
+                <option>14:00-16:00</option>
+                <option>16:00-18:00</option>
+                <option>17:00-19:00</option>
+              </select>
+              <input placeholder="工作备注" value={scheduleForm.note} onChange={(e) => setScheduleForm({ ...scheduleForm, note: e.target.value })} />
+              <button>保存排班</button>
+            </form>
+
+            <div className="panel wide">
+              <div className="toolbar">
+                <h2>排班列表</h2>
+                <label><CalendarDays size={16} /><input type="date" value={scheduleDateFilter} onChange={(e) => setScheduleDateFilter(e.target.value)} /></label>
+                {scheduleDateFilter && (
+                  <button className="clearBtn" onClick={() => setScheduleDateFilter('')}>清除筛选</button>
+                )}
+              </div>
+              <div className="scheduleList">
+                {filteredSchedules.length === 0 ? (
+                  <p className="muted">暂无排班记录{scheduleDateFilter ? '（请调整筛选条件）' : ''}</p>
+                ) : (
+                  filteredSchedules.map((schedule) => (
+                    <article className="scheduleCard" key={schedule.id}>
+                      <div className="scheduleHeader">
+                        <div className="scheduleDate">
+                          <strong>{schedule.date}</strong>
+                          <span className="weekdayTag">{schedule.weekday}</span>
+                        </div>
+                        <button className="deleteBtn" onClick={() => deleteSchedule(schedule.id)}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <div className="scheduleBody">
+                        <span className={`dutyTag ${schedule.duty}`}>{schedule.duty}</span>
+                        <p className="row"><Users size={15} />{schedule.volunteer}<span>{schedule.phone}</span></p>
+                        <p className="row"><Clock size={15} />{schedule.time}</p>
+                        {schedule.note && <p className="scheduleNote">📝 {schedule.note}</p>}
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
+            </div>
+          </section>
+        </>
+      )}
     </main>
   );
 }

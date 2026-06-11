@@ -34,4 +34,32 @@ button { border: 0; border-radius: 8px; padding: 12px 14px; background: #2f613a;
 .task input { width: auto; }
 .task small { color: #778370; }
 .done { text-decoration: line-through; color: #87917f; }
-@media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } }
+
+.tabs { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.tab { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; background: #fff; border: 1px solid #dfe7d7; color: #55624e; }
+.tab.active { background: #2f613a; color: #fff; border-color: #2f613a; }
+.tab:hover:not(.active) { background: #eef5e9; }
+
+.statNumber { font-size: 36px; font-weight: 600; color: #2f613a; margin: 8px 0 0; line-height: 1; }
+.statNumber span { font-size: 14px; color: #71806a; font-weight: normal; margin-left: 4px; }
+
+.clearBtn { background: transparent; color: #55624e; border: 1px solid #cdd8c3; padding: 8px 14px; }
+.clearBtn:hover { background: #eef5e9; }
+
+.deleteBtn { background: #fff; color: #8b3f23; border: 1px solid #e8c9bc; padding: 6px 10px; width: auto; }
+.deleteBtn:hover { background: #fbeae2; }
+
+.scheduleList { display: grid; gap: 12px; }
+.scheduleCard { background: #fbfcf8; border: 1px solid #dfe7d7; border-radius: 8px; padding: 16px; box-shadow: none; }
+.scheduleHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.scheduleDate { display: flex; align-items: center; gap: 10px; }
+.scheduleDate strong { font-size: 16px; color: #243222; }
+.weekdayTag { background: #eef5e9; color: #5f7648; padding: 4px 10px; border-radius: 6px; font-size: 13px; }
+.scheduleBody { display: flex; flex-direction: column; gap: 8px; }
+.dutyTag { display: inline-block; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; width: fit-content; margin-bottom: 4px; }
+.dutyTag.浇水 { background: #e3f0fb; color: #2c5f8a; }
+.dutyTag.补土 { background: #f5ecd8; color: #8a6a2c; }
+.dutyTag.巡检 { background: #e8f5e3; color: #3d7a2c; }
+.scheduleNote { color: #6b7763; font-size: 14px; margin: 4px 0 0; padding-top: 8px; border-top: 1px dashed #dfe7d7; }
+
+@media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } }
