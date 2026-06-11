@@ -1,7 +1,73 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { CalendarDays, Clock, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, Wallet, Heart, CircleDollarSign, Timer, CheckCircle2, XCircle, AlertTriangle, Thermometer, Sun, Gauge, Settings, TrendingUp, TrendingDown } from 'lucide-react';
+import { CalendarDays, Clock, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, Wallet, Heart, CircleDollarSign, Timer, CheckCircle2, XCircle, AlertTriangle, Thermometer, Sun, Gauge, Settings, TrendingUp, TrendingDown, Grid3X3, Move, Info, Layers } from 'lucide-react';
 import './styles.css';
+
+const ZONE_CONFIG = {
+  A: { name: 'A区', rows: 4, cols: 6, description: '叶菜种植区' },
+  B: { name: 'B区', rows: 4, cols: 6, description: '果蔬种植区' },
+  C: { name: 'C区', rows: 3, cols: 6, description: '轮作育苗区' }
+};
+
+const migrateBedPositions = (beds) => {
+  const bedPositionsKey = 'zfl-1-bed-positions';
+  const dataVersionKey = 'zfl-1-data-version';
+  
+  try {
+    const currentVersion = localStorage.getItem(dataVersionKey);
+    if (currentVersion === '2.0') {
+      return beds;
+    }
+
+    const rawPositions = localStorage.getItem(bedPositionsKey);
+    let positions = rawPositions ? JSON.parse(rawPositions) : {};
+    
+    let needsMigration = false;
+    const migratedBeds = beds.map((bed, index) => {
+      if (bed.zone && typeof bed.row === 'number' && typeof bed.col === 'number') {
+        return bed;
+      }
+      
+      needsMigration = true;
+      
+      let zone = 'A';
+      let row = 0;
+      let col = index % 6;
+      
+      if (bed.name) {
+        const zoneMatch = bed.name.match(/^([A-C])/);
+        if (zoneMatch) {
+          zone = zoneMatch[1];
+        }
+        const numMatch = bed.name.match(/(\d+)/);
+        if (numMatch) {
+          const num = parseInt(numMatch[1]);
+          row = Math.floor((num - 1) / 6) % 4;
+          col = (num - 1) % 6;
+        }
+      }
+      
+      if (positions[bed.id]) {
+        zone = positions[bed.id].zone;
+        row = positions[bed.id].row;
+        col = positions[bed.id].col;
+      }
+      
+      return { ...bed, zone, row, col };
+    });
+    
+    if (needsMigration) {
+      localStorage.setItem(dataVersionKey, '2.0');
+      localStorage.removeItem(bedPositionsKey);
+      console.log('[数据迁移] 已完成菜畦位置信息迁移，共迁移', migratedBeds.filter(b => b.zone).length, '块菜畦');
+    }
+    
+    return migratedBeds;
+  } catch (err) {
+    console.error('[数据迁移] 迁移失败，返回原始数据', err);
+    return beds;
+  }
+};
 
 const today = new Date();
 const iso = (offset = 0) => {
@@ -112,15 +178,22 @@ const getCurrentEnvData = (history) => {
   };
 };
 
-function useStoredState(key, initialValue, validator) {
+function useStoredState(key, initialValue, validator, migrator) {
   const [value, setValue] = useState(() => {
     try {
       const raw = localStorage.getItem(key);
       if (!raw) return initialValue;
-      const parsed = JSON.parse(raw);
+      let parsed = JSON.parse(raw);
       if (validator && !validator(parsed)) {
         console.warn(`[useStoredState] 数据校验失败，回退到默认值: ${key}`);
         return initialValue;
+      }
+      if (migrator && typeof migrator === 'function') {
+        const migrated = migrator(parsed);
+        if (migrated !== parsed) {
+          localStorage.setItem(key, JSON.stringify(migrated));
+          return migrated;
+        }
       }
       return parsed;
     } catch (err) {
@@ -166,7 +239,7 @@ const validateEnvThresholds = (data) => {
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [beds, setBeds] = useStoredState('zfl-1-beds', seedBeds);
+  const [beds, setBeds] = useStoredState('zfl-1-beds', seedBeds, null, migrateBedPositions);
   const [harvests, setHarvests] = useStoredState('zfl-1-harvests', seedHarvests);
   const [tasks, setTasks] = useStoredState('zfl-1-tasks', seedTasks);
   const [schedules, setSchedules] = useStoredState('zfl-1-schedules', seedSchedules);
@@ -181,7 +254,7 @@ function App() {
   const [scheduleDateFilter, setScheduleDateFilter] = useState('');
   const [plantQuery, setPlantQuery] = useState('');
   const [plantFilter, setPlantFilter] = useState('');
-  const [bedForm, setBedForm] = useState({ name: '', crop: '', adopter: '', phone: '', area: '', status: '认养中', nextWater: iso(2), warning: '' });
+  const [bedForm, setBedForm] = useState({ name: '', crop: '', adopter: '', phone: '', area: '', status: '认养中', nextWater: iso(2), warning: '', zone: 'A', row: 0, col: 0 });
   const [harvestForm, setHarvestForm] = useState({ bed: '', crop: '', weight: '', date: iso(0), note: '' });
   const [scheduleForm, setScheduleForm] = useState({ date: iso(0), weekday: '', volunteer: '', phone: '', duty: '浇水', time: '09:00-11:00', note: '' });
   const [contactForm, setContactForm] = useState({ bedId: '', bedName: '', adopter: '', phone: '', type: '电话', date: iso(0), time: '09:00', content: '', note: '' });
@@ -206,6 +279,11 @@ function App() {
   const [distributingHarvestId, setDistributingHarvestId] = useState(null);
   const [distributionForm, setDistributionForm] = useState({ selfPickup: '', communityShare: '', volunteerSample: '', loss: '', note: '' });
   const [distributionError, setDistributionError] = useState('');
+  
+  const [draggedBed, setDraggedBed] = useState(null);
+  const [selectedBed, setSelectedBed] = useState(null);
+  const [showBedDetail, setShowBedDetail] = useState(false);
+  const [floorMapZoneFilter, setFloorMapZoneFilter] = useState('');
 
   const weekWater = beds.filter((bed) => {
     const days = (new Date(bed.nextWater) - today) / 86400000;
@@ -262,11 +340,162 @@ function App() {
     return [...bedWarnings, ...envAlerts];
   }, [warnings, envAlerts]);
 
+  const bedsByZone = useMemo(() => {
+    const map = {};
+    Object.keys(ZONE_CONFIG).forEach(zone => {
+      map[zone] = beds.filter(bed => bed.zone === zone);
+    });
+    return map;
+  }, [beds]);
+
+  const unplacedBeds = useMemo(() => {
+    return beds.filter(bed => !bed.zone || typeof bed.row !== 'number' || typeof bed.col !== 'number');
+  }, [beds]);
+
+  const floorMapStats = useMemo(() => {
+    const total = Object.values(ZONE_CONFIG).reduce((sum, z) => sum + z.rows * z.cols, 0);
+    const placed = beds.filter(bed => bed.zone && typeof bed.row === 'number' && typeof bed.col === 'number').length;
+    const adopted = beds.filter(bed => bed.status === '认养中').length;
+    const idle = beds.filter(bed => bed.status === '空闲').length;
+    const hasWarning = beds.filter(bed => bed.warning).length;
+    const needWater = beds.filter(bed => {
+      const days = (new Date(bed.nextWater) - today) / 86400000;
+      return days <= 2;
+    }).length;
+    return { total, placed, adopted, idle, hasWarning, needWater, unplaced: unplacedBeds.length };
+  }, [beds, unplacedBeds]);
+
+  const getBedAtPosition = useCallback((zone, row, col) => {
+    return beds.find(bed => bed.zone === zone && bed.row === row && bed.col === col) || null;
+  }, [beds]);
+
+  const isPositionOccupied = useCallback((zone, row, col, excludeBedId = null) => {
+    return beds.some(bed => 
+      bed.zone === zone && 
+      bed.row === row && 
+      bed.col === col && 
+      bed.id !== excludeBedId
+    );
+  }, [beds]);
+
+  const findEmptyPosition = useCallback((zone) => {
+    const config = ZONE_CONFIG[zone];
+    for (let row = 0; row < config.rows; row++) {
+      for (let col = 0; col < config.cols; col++) {
+        if (!isPositionOccupied(zone, row, col)) {
+          return { zone, row, col };
+        }
+      }
+    }
+    return null;
+  }, [isPositionOccupied]);
+
+  const moveBedToPosition = useCallback((bedId, zone, row, col) => {
+    const targetBed = getBedAtPosition(zone, row, col);
+    const sourceBed = beds.find(b => b.id === bedId);
+    
+    if (!sourceBed) return;
+
+    if (targetBed && sourceBed) {
+      setBeds(beds.map(bed => {
+        if (bed.id === bedId) {
+          return { ...bed, zone, row, col };
+        }
+        if (bed.id === targetBed.id) {
+          return { ...bed, zone: sourceBed.zone, row: sourceBed.row, col: sourceBed.col };
+        }
+        return bed;
+      }));
+    } else {
+      setBeds(beds.map(bed => 
+        bed.id === bedId ? { ...bed, zone, row, col } : bed
+      ));
+    }
+  }, [beds, getBedAtPosition]);
+
+  const handleDragStart = useCallback((e, bed) => {
+    setDraggedBed(bed);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', bed.id);
+  }, []);
+
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const handleDrop = useCallback((e, zone, row, col) => {
+    e.preventDefault();
+    if (draggedBed) {
+      moveBedToPosition(draggedBed.id, zone, row, col);
+    }
+    setDraggedBed(null);
+  }, [draggedBed, moveBedToPosition]);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedBed(null);
+  }, []);
+
+  const getWaterStatus = useCallback((nextWaterDate) => {
+    const days = (new Date(nextWaterDate) - today) / 86400000;
+    if (days < 0) return { status: 'overdue', label: '已逾期', days };
+    if (days <= 1) return { status: 'urgent', label: '今天', days };
+    if (days <= 3) return { status: 'soon', label: `${Math.ceil(days)}天后`, days };
+    return { status: 'normal', label: `${Math.ceil(days)}天后`, days };
+  }, []);
+
+  const openBedDetail = useCallback((bed) => {
+    setSelectedBed(bed);
+    setShowBedDetail(true);
+  }, []);
+
+  const closeBedDetail = useCallback(() => {
+    setShowBedDetail(false);
+    setSelectedBed(null);
+  }, []);
+
+  const autoAssignUnplacedBeds = useCallback(() => {
+    const updatedBeds = [...beds];
+    let hasChanges = false;
+    
+    unplacedBeds.forEach(bed => {
+      let assigned = false;
+      for (const zone of ['A', 'B', 'C']) {
+        const pos = findEmptyPosition(zone);
+        if (pos) {
+          const idx = updatedBeds.findIndex(b => b.id === bed.id);
+          if (idx !== -1) {
+            updatedBeds[idx] = { ...updatedBeds[idx], ...pos };
+            hasChanges = true;
+            assigned = true;
+          }
+          break;
+        }
+      }
+      if (!assigned) {
+        console.warn(`无法为菜畦 ${bed.name} 找到空闲位置`);
+      }
+    });
+    
+    if (hasChanges) {
+      setBeds(updatedBeds);
+    }
+  }, [beds, unplacedBeds, findEmptyPosition]);
+
   const addBed = (event) => {
     event.preventDefault();
     if (!bedForm.name.trim()) return;
-    setBeds([{ id: crypto.randomUUID(), ...bedForm }, ...beds]);
-    setBedForm({ name: '', crop: '', adopter: '', phone: '', area: '', status: '认养中', nextWater: iso(2), warning: '' });
+    
+    const position = findEmptyPosition(bedForm.zone) || findEmptyPosition('A') || { zone: 'A', row: 0, col: 0 };
+    
+    setBeds([{ 
+      id: crypto.randomUUID(), 
+      ...bedForm, 
+      zone: position.zone,
+      row: position.row,
+      col: position.col
+    }, ...beds]);
+    setBedForm({ name: '', crop: '', adopter: '', phone: '', area: '', status: '认养中', nextWater: iso(2), warning: '', zone: 'A', row: 0, col: 0 });
   };
 
   const addHarvest = (event) => {
@@ -1044,6 +1273,9 @@ function App() {
         <button className={activeTab === 'dashboard' ? 'tab active' : 'tab'} onClick={() => setActiveTab('dashboard')}>
           <Leaf size={16} />菜园总览
         </button>
+        <button className={activeTab === 'floorMap' ? 'tab active' : 'tab'} onClick={() => setActiveTab('floorMap')}>
+          <Grid3X3 size={16} />菜畦平面图
+        </button>
         <button className={activeTab === 'plants' ? 'tab active' : 'tab'} onClick={() => setActiveTab('plants')}>
           <Sprout size={16} />种植计划
         </button>
@@ -1280,6 +1512,157 @@ function App() {
               ))}
             </div>
           </section>
+        </>
+      )}
+
+      {activeTab === 'floorMap' && (
+        <>
+          <section className="dashboard">
+            <article>
+              <h2>总格子数</h2>
+              <p className="statNumber">{floorMapStats.total}<span>个</span></p>
+            </article>
+            <article>
+              <h2>已使用</h2>
+              <p className="statNumber">{floorMapStats.placed}<span>个</span></p>
+            </article>
+            <article>
+              <h2>认养中</h2>
+              <p className="statNumber" style={{ color: '#3d7a2c' }}>{floorMapStats.adopted}<span>块</span></p>
+            </article>
+            <article>
+              <h2>需浇水</h2>
+              <p className="statNumber" style={{ color: floorMapStats.needWater > 0 ? '#8b3f23' : '#3d7a2c' }}>{floorMapStats.needWater}<span>块</span></p>
+            </article>
+            <article>
+              <h2>异常提醒</h2>
+              <p className="statNumber" style={{ color: floorMapStats.hasWarning > 0 ? '#8b3f23' : '#3d7a2c' }}>{floorMapStats.hasWarning}<span>条</span></p>
+            </article>
+          </section>
+
+          {floorMapStats.unplaced > 0 && (
+            <section className="inventoryWarning">
+              <h2><AlertTriangle size={18} />未定位菜畦</h2>
+              <p className="muted">有 {floorMapStats.unplaced} 块菜畦尚未分配位置，请点击下方按钮自动分配或拖拽到网格中。</p>
+              <button className="miniBtn" onClick={autoAssignUnplacedBeds} style={{ marginTop: '12px' }}>
+                <Layers size={14} /> 自动分配所有未定位菜畦
+              </button>
+              <div className="unplacedBedsList">
+                {unplacedBeds.map(bed => (
+                  <div
+                    key={bed.id}
+                    className="unplacedBedItem"
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, bed)}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <Move size={14} />
+                    <span>{bed.name}</span>
+                    <span className="unplacedBedCrop">{bed.crop}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <div className="floorMapToolbar">
+            <div className="toolbarActions">
+              <select
+                className="filterSelect"
+                value={floorMapZoneFilter}
+                onChange={(e) => setFloorMapZoneFilter(e.target.value)}
+              >
+                <option value="">全部区域</option>
+                {Object.entries(ZONE_CONFIG).map(([key, config]) => (
+                  <option key={key} value={key}>{config.name} - {config.description}</option>
+                ))}
+              </select>
+            </div>
+            <div className="legend">
+              <span className="legendItem"><span className="legendDot status-adopted"></span>认养中</span>
+              <span className="legendItem"><span className="legendDot status-idle"></span>空闲</span>
+              <span className="legendItem"><span className="legendDot status-paused"></span>暂停维护</span>
+              <span className="legendItem"><span className="legendDot water-urgent"></span>需紧急浇水</span>
+              <span className="legendItem"><span className="legendDot has-warning"></span>有异常</span>
+            </div>
+          </div>
+
+          <div className="floorMapContainer">
+            {Object.entries(ZONE_CONFIG).map(([zone, config]) => {
+              if (floorMapZoneFilter && floorMapZoneFilter !== zone) return null;
+              return (
+                <div key={zone} className="zoneSection">
+                  <div className="zoneHeader">
+                    <h2>{config.name}</h2>
+                    <span className="zoneDescription">{config.description}</span>
+                    <span className="zoneUsage">{bedsByZone[zone]?.length || 0}/{config.rows * config.cols}</span>
+                  </div>
+                  <div
+                    className="gridContainer"
+                    style={{
+                      gridTemplateColumns: `repeat(${config.cols}, 1fr)`,
+                      gridTemplateRows: `repeat(${config.rows}, 1fr)`
+                    }}
+                  >
+                    {Array.from({ length: config.rows }).map((_, row) =>
+                      Array.from({ length: config.cols }).map((_, col) => {
+                        const bed = getBedAtPosition(zone, row, col);
+                        const waterStatus = bed ? getWaterStatus(bed.nextWater) : null;
+                        const isDraggingOver = draggedBed && !bed;
+                        
+                        return (
+                          <div
+                            key={`${zone}-${row}-${col}`}
+                            className={`gridCell ${bed ? 'hasBed' : 'empty'} ${isDraggingOver ? 'dragOver' : ''} ${bed && draggedBed?.id === bed.id ? 'dragging' : ''}`}
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => handleDrop(e, zone, row, col)}
+                            onClick={() => bed && openBedDetail(bed)}
+                          >
+                            {bed ? (
+                              <div
+                                className={`bedGridCard status-${bed.status} ${waterStatus?.status === 'overdue' || waterStatus?.status === 'urgent' ? 'water-urgent' : ''} ${bed.warning ? 'has-warning' : ''}`}
+                                draggable
+                                onDragStart={(e) => {
+                                  e.stopPropagation();
+                                  handleDragStart(e, bed);
+                                }}
+                                onDragEnd={handleDragEnd}
+                              >
+                                <div className="bedGridHeader">
+                                  <span className="bedGridName">{bed.name}</span>
+                                  <Move size={12} className="dragHandle" />
+                                </div>
+                                <div className="bedGridCrop">{bed.crop}</div>
+                                <div className="bedGridFooter">
+                                  {bed.adopter ? (
+                                    <span className="bedGridAdopter"><Users size={10} />{bed.adopter.slice(0, 3)}</span>
+                                  ) : (
+                                    <span className="bedGridAdopter idle">待认养</span>
+                                  )}
+                                  <span className={`bedGridWater water-${waterStatus?.status}`}>
+                                    <Droplets size={10} />{waterStatus?.label}
+                                  </span>
+                                </div>
+                                {bed.warning && (
+                                  <div className="bedGridWarning">
+                                    <AlertTriangle size={10} />
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="emptyCell">
+                                <span className="cellCoordinate">{zone}{row * config.cols + col + 1}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </>
       )}
 
@@ -2523,6 +2906,154 @@ function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showBedDetail && selectedBed && (
+        <div className="modalOverlay" onClick={closeBedDetail}>
+          <div className="modalContent bedDetailModal" onClick={(e) => e.stopPropagation()}>
+            <div className="modalHeader">
+              <h2><Info size={18} />菜畦详情</h2>
+              <button className="closeBtn" onClick={closeBedDetail}>×</button>
+            </div>
+            <div className="modalBody">
+              <div className="bedDetailHeader">
+                <div className="bedDetailTitle">
+                  <h3>{selectedBed.name}</h3>
+                  <span className={`stageTag ${selectedBed.status === '认养中' ? '生长期' : selectedBed.status === '空闲' ? '播种期' : '成熟期'}`}>
+                    {selectedBed.status}
+                  </span>
+                </div>
+                <p className="bedDetailCrop">{selectedBed.crop}</p>
+              </div>
+
+              <div className="bedDetailGrid">
+                <div className="bedDetailItem">
+                  <span className="bedDetailLabel"><MapPin size={14} /> 位置</span>
+                  <span className="bedDetailValue">{selectedBed.zone}区 第{selectedBed.row + 1}行 第{selectedBed.col + 1}列</span>
+                </div>
+                <div className="bedDetailItem">
+                  <span className="bedDetailLabel"><Leaf size={14} /> 面积</span>
+                  <span className="bedDetailValue">{selectedBed.area}</span>
+                </div>
+                <div className="bedDetailItem">
+                  <span className="bedDetailLabel"><Users size={14} /> 认养人</span>
+                  <span className="bedDetailValue">{selectedBed.adopter || '待认养'}</span>
+                </div>
+                <div className="bedDetailItem">
+                  <span className="bedDetailLabel"><Phone size={14} /> 联系电话</span>
+                  <span className="bedDetailValue">{selectedBed.phone || '-'}</span>
+                </div>
+                <div className="bedDetailItem">
+                  <span className="bedDetailLabel"><Droplets size={14} /> 下次浇水</span>
+                  <span className={`bedDetailValue water-${getWaterStatus(selectedBed.nextWater).status}`}>
+                    {selectedBed.nextWater} ({getWaterStatus(selectedBed.nextWater).label})
+                  </span>
+                </div>
+                <div className="bedDetailItem">
+                  <span className="bedDetailLabel"><CalendarDays size={14} /> 当前位置</span>
+                  <span className="bedDetailValue">{selectedBed.zone}{selectedBed.row * 6 + selectedBed.col + 1}</span>
+                </div>
+              </div>
+
+              {selectedBed.warning && (
+                <div className="bedDetailWarning">
+                  <AlertTriangle size={16} />
+                  <div>
+                    <strong>异常提醒</strong>
+                    <p>{selectedBed.warning}</p>
+                  </div>
+                </div>
+              )}
+
+              {getLastContactByBed[selectedBed.id] && (
+                <div className="bedDetailSection">
+                  <h4><MessageCircle size={16} /> 最近联系</h4>
+                  <div className="contactCard" style={{ margin: 0 }}>
+                    <div className="contactHeader">
+                      <div className="contactMeta">
+                        <span className={`contactTypeTag ${getLastContactByBed[selectedBed.id].type}`}>
+                          {getLastContactByBed[selectedBed.id].type === '电话' && <Phone size={12} />}
+                          {getLastContactByBed[selectedBed.id].type === '微信' && <MessageCircle size={12} />}
+                          {getLastContactByBed[selectedBed.id].type === '现场沟通' && <MapPin size={12} />}
+                          {getLastContactByBed[selectedBed.id].type === '取菜通知' && <Bell size={12} />}
+                          {getLastContactByBed[selectedBed.id].type}
+                        </span>
+                      </div>
+                      <span className="contactDateTime">{getLastContactByBed[selectedBed.id].date} {getLastContactByBed[selectedBed.id].time}</span>
+                    </div>
+                    <div className="contactBody">
+                      <p className="contactContent">{getLastContactByBed[selectedBed.id].content}</p>
+                      {getLastContactByBed[selectedBed.id].note && <p className="contactNote">📝 {getLastContactByBed[selectedBed.id].note}</p>}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {getFeeByBed[selectedBed.id] && getFeeByBed[selectedBed.id].length > 0 && (
+                <div className="bedDetailSection">
+                  <h4><Wallet size={16} /> 费用记录</h4>
+                  {getFeeByBed[selectedBed.id].slice(0, 2).map(fee => (
+                    <div key={fee.id} className="bedDetailFee">
+                      <div className="bedDetailFeeHeader">
+                        <span>{fee.startDate} 至 {fee.endDate}</span>
+                        <span className={`feeStatusTag ${fee.paymentStatus}`}>{fee.paymentStatus}</span>
+                      </div>
+                      <div className="bedDetailFeeAmount">¥{fee.amount}</div>
+                      {fee.donationNote && <p className="feeDonation"><Heart size={12} /> {fee.donationNote}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {plants.filter(p => p.bedId === selectedBed.id).length > 0 && (
+                <div className="bedDetailSection">
+                  <h4><Sprout size={16} /> 种植计划</h4>
+                  {plants.filter(p => p.bedId === selectedBed.id).map(plant => (
+                    <div key={plant.id} className="bedDetailPlant">
+                      <div className="bedDetailPlantHeader">
+                        <strong>{plant.crop}</strong>
+                        <span className={`stageTag ${plant.growthStage}`}>{plant.growthStage}</span>
+                      </div>
+                      <p className="row"><CalendarDays size={14} /> 播种：{plant.sowDate} <span>预计采摘：{plant.harvestDate}</span></p>
+                      <p className="row"><Timer size={14} /> {getDaysUntilHarvest(plant.harvestDate)}</p>
+                      {plant.note && <p className="plantNote">📝 {plant.note}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {harvests.filter(h => h.bed === selectedBed.name).length > 0 && (
+                <div className="bedDetailSection">
+                  <h4><Wheat size={16} /> 最近采摘</h4>
+                  {harvests.filter(h => h.bed === selectedBed.name).slice(0, 3).map(h => (
+                    <div key={h.id} className="bedDetailHarvest">
+                      <div className="bedDetailHarvestHeader">
+                        <strong>{h.crop}</strong>
+                        <span>{h.weight}</span>
+                      </div>
+                      <p className="row"><CalendarDays size={14} /> {h.date}</p>
+                      {h.note && <p className="harvestNote">📝 {h.note}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="modalActions">
+                <button type="button" className="clearBtn" onClick={closeBedDetail}>关闭</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    advanceWater(selectedBed.id);
+                    const updated = beds.find(b => b.id === selectedBed.id);
+                    if (updated) setSelectedBed({ ...updated, nextWater: iso(3), warning: '' });
+                  }}
+                >
+                  <Droplets size={14} /> 已浇水
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

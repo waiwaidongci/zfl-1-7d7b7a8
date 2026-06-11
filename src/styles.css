@@ -420,4 +420,537 @@ textarea { width: 100%; border: 1px solid #cdd8c3; border-radius: 8px; padding: 
 .distributionError { display: flex; align-items: flex-start; gap: 8px; padding: 12px 14px; background: #fbe3e3; border: 1px solid #e8a0a0; border-radius: 8px; color: #8a2c2c; font-size: 14px; line-height: 1.5; }
 .distributionError svg { flex-shrink: 0; margin-top: 2px; }
 
+.floorMapToolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #55624e;
+}
+
+.legendDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.legendDot.status-adopted {
+  background: linear-gradient(135deg, #3d7a2c, #6c8b42);
+}
+
+.legendDot.status-idle {
+  background: linear-gradient(135deg, #cdd8c3, #b8c4ac);
+}
+
+.legendDot.status-paused {
+  background: linear-gradient(135deg, #f0d6a0, #e6c77a);
+}
+
+.legendDot.water-urgent {
+  background: linear-gradient(135deg, #8b3f23, #c9764d);
+}
+
+.legendDot.has-warning {
+  background: linear-gradient(135deg, #e6c77a, #d4a017);
+  border: 2px solid #8b3f23;
+}
+
+.floorMapContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.zoneSection {
+  background: #fff;
+  border: 1px solid #dfe7d7;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 8px 26px rgb(44 61 34 / .07);
+}
+
+.zoneHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.zoneHeader h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #243222;
+}
+
+.zoneDescription {
+  font-size: 13px;
+  color: #71806a;
+  background: #eef5e9;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.zoneUsage {
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2f613a;
+  background: #e8f5e3;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+.gridContainer {
+  display: grid;
+  gap: 8px;
+}
+
+.gridCell {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  border: 2px dashed #dfe7d7;
+  background: #f8faf5;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  position: relative;
+  min-height: 80px;
+}
+
+.gridCell.empty:hover {
+  border-color: #6c8b42;
+  background: #eef5e9;
+}
+
+.gridCell.dragOver {
+  border-color: #2f613a;
+  background: #d5edcc;
+  border-style: solid;
+  transform: scale(1.02);
+}
+
+.gridCell.hasBed {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.gridCell.dragging {
+  opacity: 0.4;
+}
+
+.emptyCell {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cellCoordinate {
+  font-size: 11px;
+  color: #b8c4ac;
+  font-weight: 500;
+}
+
+.bedGridCard {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.2s ease;
+  position: relative;
+  box-sizing: border-box;
+  cursor: grab;
+  user-select: none;
+}
+
+.bedGridCard:active {
+  cursor: grabbing;
+}
+
+.bedGridCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.bedGridCard.status-认养中 {
+  background: linear-gradient(135deg, #3d7a2c, #6c8b42);
+  color: #fff;
+}
+
+.bedGridCard.status-空闲 {
+  background: linear-gradient(135deg, #cdd8c3, #b8c4ac);
+  color: #243222;
+}
+
+.bedGridCard.status-暂停维护 {
+  background: linear-gradient(135deg, #f0d6a0, #e6c77a);
+  color: #5a4a1e;
+}
+
+.bedGridCard.water-urgent {
+  box-shadow: 0 0 0 3px #8b3f23, 0 4px 12px rgba(139, 63, 35, 0.3);
+}
+
+.bedGridCard.has-warning::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 12px;
+  height: 12px;
+  background: #e6c77a;
+  border: 2px solid #8b3f23;
+  border-radius: 50%;
+}
+
+.bedGridHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.bedGridName {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.dragHandle {
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.bedGridCrop {
+  font-size: 10px;
+  opacity: 0.9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 2px 0;
+}
+
+.bedGridFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+}
+
+.bedGridAdopter {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  opacity: 0.95;
+}
+
+.bedGridAdopter.idle {
+  opacity: 0.7;
+}
+
+.bedGridWater {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.bedGridWater.overdue {
+  background: rgba(139, 63, 35, 0.8);
+  color: #fff;
+}
+
+.bedGridWater.urgent {
+  background: rgba(196, 84, 53, 0.8);
+  color: #fff;
+}
+
+.bedGridWater.soon {
+  background: rgba(230, 199, 122, 0.8);
+  color: #5a4a1e;
+}
+
+.bedGridWater.normal {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.bedGridWarning {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: #e6c77a;
+  border: 1px solid #8b3f23;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8b3f23;
+}
+
+.unplacedBedsList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.unplacedBedItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #fef8e8;
+  border: 1px solid #f0d6a0;
+  border-radius: 6px;
+  cursor: grab;
+  font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.unplacedBedItem:hover {
+  background: #fef0d0;
+  transform: translateY(-1px);
+}
+
+.unplacedBedItem:active {
+  cursor: grabbing;
+}
+
+.unplacedBedCrop {
+  font-size: 11px;
+  color: #8a7a4e;
+  background: #f5ecd8;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.bedDetailModal {
+  max-width: 640px !important;
+}
+
+.bedDetailHeader {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #eef2eb;
+}
+
+.bedDetailTitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.bedDetailTitle h3 {
+  margin: 0;
+  font-size: 20px;
+  color: #243222;
+}
+
+.bedDetailCrop {
+  margin: 0;
+  font-size: 15px;
+  color: #5f7648;
+}
+
+.bedDetailGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.bedDetailItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: #f8faf5;
+  border-radius: 8px;
+}
+
+.bedDetailLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #71806a;
+}
+
+.bedDetailValue {
+  font-size: 14px;
+  font-weight: 500;
+  color: #243222;
+}
+
+.bedDetailValue.water-overdue,
+.bedDetailValue.water-urgent {
+  color: #8b3f23;
+}
+
+.bedDetailValue.water-soon {
+  color: #8a6a2c;
+}
+
+.bedDetailWarning {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  background: #fef8e8;
+  border: 1px solid #f0d6a0;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  color: #8a6a2c;
+}
+
+.bedDetailWarning strong {
+  display: block;
+  margin-bottom: 2px;
+  color: #5a4a1e;
+}
+
+.bedDetailWarning p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.bedDetailSection {
+  margin-top: 16px;
+}
+
+.bedDetailSection h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px 0;
+  font-size: 15px;
+  color: #243222;
+}
+
+.bedDetailFee,
+.bedDetailPlant,
+.bedDetailHarvest {
+  padding: 12px;
+  background: #f8faf5;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.bedDetailFee:last-child,
+.bedDetailPlant:last-child,
+.bedDetailHarvest:last-child {
+  margin-bottom: 0;
+}
+
+.bedDetailFeeHeader,
+.bedDetailPlantHeader,
+.bedDetailHarvestHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.bedDetailFeeAmount {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2f613a;
+}
+
+@media (max-width: 900px) {
+  .floorMapToolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .legend {
+    justify-content: center;
+  }
+  .bedDetailGrid {
+    grid-template-columns: 1fr;
+  }
+  .zoneHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .zoneUsage {
+    margin-left: 0;
+    align-self: flex-end;
+  }
+  .gridCell {
+    min-height: 60px;
+  }
+  .bedGridCard {
+    padding: 5px;
+  }
+  .bedGridName {
+    font-size: 10px;
+  }
+  .bedGridCrop {
+    font-size: 9px;
+  }
+  .bedGridFooter {
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 600px) {
+  .gridCell {
+    min-height: 50px;
+  }
+  .bedGridCard {
+    padding: 3px;
+  }
+  .bedGridName {
+    font-size: 8px;
+  }
+  .bedGridCrop {
+    display: none;
+  }
+  .bedGridFooter {
+    flex-direction: column;
+    align-items: stretch;
+    font-size: 7px;
+  }
+  .dragHandle {
+    display: none;
+  }
+}
+
 @media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } .toolbarActions { width: 100%; flex-direction: column; } .filterSelect { width: 100%; } .contactHeader { flex-direction: column; align-items: start; gap: 8px; } .plantDates { justify-content: space-between; } .stockRow { grid-template-columns: repeat(2, 1fr); } .warningCards { grid-template-columns: 1fr; } .transactionMeta { flex-direction: column; align-items: start; } .transactionHeader { flex-direction: column; align-items: start; gap: 8px; } .inventoryActions { flex-wrap: wrap; } .editFormActions { flex-direction: column; } .feeDetailRow { grid-template-columns: 1fr; } .feeHeader { flex-direction: column; align-items: start; } .feeActions { flex-wrap: wrap; } .feeSummaryBar { flex-direction: column; gap: 8px; } .feeExpiryCards { grid-template-columns: 1fr; } .feeExpiryCard { flex-direction: column; align-items: start; } .feeExpiryMeta { flex-direction: row; align-items: center; } .trendCharts { grid-template-columns: 1fr; } .envWaterValue { font-size: 36px; } .envSensorValue { font-size: 28px; } .distributionHarvestInfo { grid-template-columns: 1fr; } .distributionFields { grid-template-columns: 1fr; } .harvestMiniCard > div:first-child { flex-direction: column; align-items: start !important; gap: 6px; } .distributionStatusTag { align-self: flex-start; } }
