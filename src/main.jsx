@@ -9,50 +9,122 @@ const ZONE_CONFIG = {
   C: { name: 'C区', rows: 3, cols: 6, description: '轮作育苗区' }
 };
 
+const extractZoneFromName = (name) => {
+  if (!name) return null;
+  const zoneMatch = name.match(/^([A-C])/i);
+  if (zoneMatch) {
+    const zone = zoneMatch[1].toUpperCase();
+    if (ZONE_CONFIG[zone]) {
+      return zone;
+    }
+  }
+  return null;
+};
+
+const extractBedNumberFromName = (name) => {
+  if (!name) return null;
+  const numMatch = name.match(/(\d+)/);
+  if (numMatch) {
+    return parseInt(numMatch[1]);
+  }
+  return null;
+};
+
+const calculatePositionFromName = (name, zoneConfig) => {
+  const zone = extractZoneFromName(name) || 'A';
+  const config = zoneConfig[zone];
+  let row = 0;
+  let col = 0;
+  
+  const num = extractBedNumberFromName(name);
+  if (num !== null) {
+    const adjustedNum = num - 1;
+    row = Math.floor(adjustedNum / config.cols) % config.rows;
+    col = adjustedNum % config.cols;
+  }
+  
+  return { zone, row, col };
+};
+
+const isPositionInBounds = (zone, row, col, zoneConfig) => {
+  const config = zoneConfig[zone];
+  if (!config) return false;
+  return row >= 0 && row < config.rows && col >= 0 && col < config.cols;
+};
+
 const migrateBedPositions = (beds) => {
   const bedPositionsKey = 'zfl-1-bed-positions';
   const dataVersionKey = 'zfl-1-data-version';
   
   try {
     const currentVersion = localStorage.getItem(dataVersionKey);
-    if (currentVersion === '2.0') {
+    
+    const allHavePositions = beds.every(bed => 
+      bed.zone && typeof bed.row === 'number' && typeof bed.col === 'number' &&
+      isPositionInBounds(bed.zone, bed.row, bed.col, ZONE_CONFIG)
+    );
+    
+    if (currentVersion === '2.0' && allHavePositions) {
       return beds;
     }
 
     const rawPositions = localStorage.getItem(bedPositionsKey);
     let positions = rawPositions ? JSON.parse(rawPositions) : {};
     
+    const usedPositions = new Set();
     let needsMigration = false;
+    
     const migratedBeds = beds.map((bed, index) => {
-      if (bed.zone && typeof bed.row === 'number' && typeof bed.col === 'number') {
-        return bed;
+      if (bed.zone && typeof bed.row === 'number' && typeof bed.col === 'number' &&
+          isPositionInBounds(bed.zone, bed.row, bed.col, ZONE_CONFIG)) {
+        const posKey = `${bed.zone}-${bed.row}-${bed.col}`;
+        if (!usedPositions.has(posKey)) {
+          usedPositions.add(posKey);
+          return bed;
+        }
       }
       
       needsMigration = true;
       
       let zone = 'A';
       let row = 0;
-      let col = index % 6;
-      
-      if (bed.name) {
-        const zoneMatch = bed.name.match(/^([A-C])/);
-        if (zoneMatch) {
-          zone = zoneMatch[1];
-        }
-        const numMatch = bed.name.match(/(\d+)/);
-        if (numMatch) {
-          const num = parseInt(numMatch[1]);
-          row = Math.floor((num - 1) / 6) % 4;
-          col = (num - 1) % 6;
-        }
-      }
+      let col = 0;
       
       if (positions[bed.id]) {
-        zone = positions[bed.id].zone;
-        row = positions[bed.id].row;
-        col = positions[bed.id].col;
+        const savedPos = positions[bed.id];
+        if (isPositionInBounds(savedPos.zone, savedPos.row, savedPos.col, ZONE_CONFIG)) {
+          zone = savedPos.zone;
+          row = savedPos.row;
+          col = savedPos.col;
+        }
       }
       
+      if (bed.name) {
+        const calculatedPos = calculatePositionFromName(bed.name, ZONE_CONFIG);
+        zone = calculatedPos.zone;
+        row = calculatedPos.row;
+        col = calculatedPos.col;
+      }
+      
+      let posKey = `${zone}-${row}-${col}`;
+      let attempts = 0;
+      while (usedPositions.has(posKey) && attempts < 100) {
+        col++;
+        if (col >= ZONE_CONFIG[zone].cols) {
+          col = 0;
+          row++;
+          if (row >= ZONE_CONFIG[zone].rows) {
+            row = 0;
+            const zones = Object.keys(ZONE_CONFIG);
+            const currentZoneIdx = zones.indexOf(zone);
+            zone = zones[(currentZoneIdx + 1) % zones.length];
+          }
+        }
+        posKey = `${zone}-${row}-${col}`;
+        attempts++;
+      }
+      
+      usedPositions.add(posKey);
       return { ...bed, zone, row, col };
     });
     
@@ -182,23 +254,37 @@ function useStoredState(key, initialValue, validator, migrator) {
   const [value, setValue] = useState(() => {
     try {
       const raw = localStorage.getItem(key);
-      if (!raw) return initialValue;
-      let parsed = JSON.parse(raw);
-      if (validator && !validator(parsed)) {
-        console.warn(`[useStoredState] 数据校验失败，回退到默认值: ${key}`);
-        return initialValue;
+      let data;
+      
+      if (!raw) {
+        data = typeof initialValue === 'function' ? initialValue() : initialValue;
+      } else {
+        let parsed = JSON.parse(raw);
+        if (validator && !validator(parsed)) {
+          console.warn(`[useStoredState] 数据校验失败，回退到默认值: ${key}`);
+          data = typeof initialValue === 'function' ? initialValue() : initialValue;
+        } else {
+          data = parsed;
+        }
       }
+      
       if (migrator && typeof migrator === 'function') {
-        const migrated = migrator(parsed);
-        if (migrated !== parsed) {
+        const migrated = migrator(data);
+        if (migrated !== data) {
           localStorage.setItem(key, JSON.stringify(migrated));
           return migrated;
         }
       }
-      return parsed;
+      
+      if (!raw) {
+        localStorage.setItem(key, JSON.stringify(data));
+      }
+      
+      return data;
     } catch (err) {
       console.error(`[useStoredState] 读取失败，回退到默认值: ${key}`, err);
-      return initialValue;
+      const fallback = typeof initialValue === 'function' ? initialValue() : initialValue;
+      return fallback;
     }
   });
   const update = (next) => {
@@ -284,6 +370,15 @@ function App() {
   const [selectedBed, setSelectedBed] = useState(null);
   const [showBedDetail, setShowBedDetail] = useState(false);
   const [floorMapZoneFilter, setFloorMapZoneFilter] = useState('');
+  
+  useEffect(() => {
+    if (bedForm.name.trim()) {
+      const detectedZone = extractZoneFromName(bedForm.name);
+      if (detectedZone && detectedZone !== bedForm.zone) {
+        setBedForm(prev => ({ ...prev, zone: detectedZone }));
+      }
+    }
+  }, [bedForm.name]);
 
   const weekWater = beds.filter((bed) => {
     const days = (new Date(bed.nextWater) - today) / 86400000;
@@ -454,14 +549,72 @@ function App() {
     setSelectedBed(null);
   }, []);
 
+  const findEmptyPositionInZones = useCallback((zones, currentBeds) => {
+    const isOccupied = (zone, row, col, excludeId = null) => {
+      return currentBeds.some(bed =>
+        bed.zone === zone &&
+        bed.row === row &&
+        bed.col === col &&
+        bed.id !== excludeId
+      );
+    };
+    
+    for (const zone of zones) {
+      const config = ZONE_CONFIG[zone];
+      if (!config) continue;
+      for (let row = 0; row < config.rows; row++) {
+        for (let col = 0; col < config.cols; col++) {
+          if (!isOccupied(zone, row, col)) {
+            return { zone, row, col };
+          }
+        }
+      }
+    }
+    return null;
+  }, []);
+
   const autoAssignUnplacedBeds = useCallback(() => {
     const updatedBeds = [...beds];
     let hasChanges = false;
     
-    unplacedBeds.forEach(bed => {
+    const sortedUnplaced = [...unplacedBeds].sort((a, b) => {
+      const zoneA = extractZoneFromName(a.name) || 'Z';
+      const zoneB = extractZoneFromName(b.name) || 'Z';
+      if (zoneA !== zoneB) return zoneA.localeCompare(zoneB);
+      const numA = extractBedNumberFromName(a.name) || 999;
+      const numB = extractBedNumberFromName(b.name) || 999;
+      return numA - numB;
+    });
+    
+    sortedUnplaced.forEach(bed => {
       let assigned = false;
-      for (const zone of ['A', 'B', 'C']) {
-        const pos = findEmptyPosition(zone);
+      
+      const preferredZone = extractZoneFromName(bed.name);
+      const preferredNum = extractBedNumberFromName(bed.name);
+      
+      if (preferredZone && preferredNum !== null) {
+        const calculatedPos = calculatePositionFromName(bed.name, ZONE_CONFIG);
+        const isOccupied = updatedBeds.some(b =>
+          b.zone === calculatedPos.zone &&
+          b.row === calculatedPos.row &&
+          b.col === calculatedPos.col
+        );
+        if (!isOccupied && isPositionInBounds(calculatedPos.zone, calculatedPos.row, calculatedPos.col, ZONE_CONFIG)) {
+          const idx = updatedBeds.findIndex(b => b.id === bed.id);
+          if (idx !== -1) {
+            updatedBeds[idx] = { ...updatedBeds[idx], ...calculatedPos };
+            hasChanges = true;
+            assigned = true;
+          }
+        }
+      }
+      
+      if (!assigned) {
+        const searchZones = preferredZone
+          ? [preferredZone, ...['A', 'B', 'C'].filter(z => z !== preferredZone)]
+          : ['A', 'B', 'C'];
+        
+        const pos = findEmptyPositionInZones(searchZones, updatedBeds);
         if (pos) {
           const idx = updatedBeds.findIndex(b => b.id === bed.id);
           if (idx !== -1) {
@@ -469,9 +622,9 @@ function App() {
             hasChanges = true;
             assigned = true;
           }
-          break;
         }
       }
+      
       if (!assigned) {
         console.warn(`无法为菜畦 ${bed.name} 找到空闲位置`);
       }
@@ -480,13 +633,41 @@ function App() {
     if (hasChanges) {
       setBeds(updatedBeds);
     }
-  }, [beds, unplacedBeds, findEmptyPosition]);
+  }, [beds, unplacedBeds, findEmptyPositionInZones]);
 
   const addBed = (event) => {
     event.preventDefault();
     if (!bedForm.name.trim()) return;
     
-    const position = findEmptyPosition(bedForm.zone) || findEmptyPosition('A') || { zone: 'A', row: 0, col: 0 };
+    let position = null;
+    const preferredZone = extractZoneFromName(bedForm.name) || bedForm.zone;
+    const preferredNum = extractBedNumberFromName(bedForm.name);
+    
+    if (preferredNum !== null) {
+      const calculatedPos = calculatePositionFromName(bedForm.name, ZONE_CONFIG);
+      if (!isPositionOccupied(calculatedPos.zone, calculatedPos.row, calculatedPos.col) &&
+          isPositionInBounds(calculatedPos.zone, calculatedPos.row, calculatedPos.col, ZONE_CONFIG)) {
+        position = calculatedPos;
+      }
+    }
+    
+    if (!position) {
+      const searchZones = preferredZone
+        ? [preferredZone, ...['A', 'B', 'C'].filter(z => z !== preferredZone)]
+        : ['A', 'B', 'C'];
+      
+      for (const zone of searchZones) {
+        const pos = findEmptyPosition(zone);
+        if (pos) {
+          position = pos;
+          break;
+        }
+      }
+    }
+    
+    if (!position) {
+      position = { zone: 'A', row: 0, col: 0 };
+    }
     
     setBeds([{ 
       id: crypto.randomUUID(), 
@@ -1410,7 +1591,14 @@ function App() {
                 <option>空闲</option>
                 <option>暂停维护</option>
               </select>
-              <input placeholder="异常提醒" value={bedForm.warning} onChange={(e) => setBedForm({ ...bedForm, warning: e.target.value })} />
+              <div className="grid2">
+                <select value={bedForm.zone} onChange={(e) => setBedForm({ ...bedForm, zone: e.target.value })}>
+                  <option value="A">A区 - 叶菜种植区</option>
+                  <option value="B">B区 - 果蔬种植区</option>
+                  <option value="C">C区 - 轮作育苗区</option>
+                </select>
+                <input placeholder="异常提醒" value={bedForm.warning} onChange={(e) => setBedForm({ ...bedForm, warning: e.target.value })} />
+              </div>
               <button>保存菜畦</button>
             </form>
 
