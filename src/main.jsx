@@ -25,7 +25,11 @@ import {
   getDistributionStats,
   getPickupStatus,
   getPickupWarnings,
-  getAllWarnings
+  getAllWarnings,
+  generatePickupNoticeContact,
+  confirmPickupContact,
+  checkPickupNoticeExists,
+  findRelatedPickupNotice
 } from './utils/distribution';
 
 
@@ -97,6 +101,16 @@ function App() {
     setDistEditingHarvest(null);
   };
 
+  const generatePickupNoticeFromDashboard = (harvestId) => {
+    const harvest = harvests.find(h => h.id === harvestId);
+    if (!harvest || !harvest.distribution?.selfPickup) return;
+    if (checkPickupNoticeExists(contacts, harvestId)) return;
+    const contact = generatePickupNoticeContact(harvest, beds);
+    if (contact) {
+      setContacts([contact, ...contacts]);
+    }
+  };
+
   const confirmPickupFromDashboard = (harvestId) => {
     setHarvests(harvests.map((h) => {
       if (h.id !== harvestId) return h;
@@ -109,6 +123,9 @@ function App() {
         }
       };
     }));
+    if (checkPickupNoticeExists(contacts, harvestId)) {
+      setContacts(confirmPickupContact(contacts, harvestId));
+    }
   };
 
   const toggleTask = (id) => setTasks(tasks.map((task) => task.id === id ? { ...task, done: !task.done } : task));
@@ -606,6 +623,8 @@ function App() {
                 const pickupStatus = getPickupStatus(item);
                 const distTotal = getDistributionTotal(item.distribution);
                 const distRemaining = getDistributionRemaining(item);
+                const noticeExists = checkPickupNoticeExists(contacts, item.id);
+                const relatedNotice = findRelatedPickupNotice(contacts, item.id);
                 const typeIcons = { selfPickup: User, communityShare: Users, volunteerSample: Heart, loss: Trash2 };
                 return (
                 <div key={item.id} className="harvestMiniCard">
@@ -621,6 +640,11 @@ function App() {
                           {pickupStatus.key === 'confirmed' ? <CheckCircle2 size={12} /> : pickupStatus.isOverdue ? <AlertCircle size={12} /> : <Clock size={12} />}
                           {pickupStatus.label}
                           {pickupStatus.key === 'confirmed' && pickupStatus.confirmedAt && ` · ${pickupStatus.confirmedAt.slice(5)}`}
+                        </span>
+                      )}
+                      {relatedNotice && (
+                        <span style={{ fontSize: '11px', color: '#2c5f8a', padding: '2px 6px', borderRadius: '4px', background: '#e8f0fa', alignSelf: 'center' }}>
+                          <Bell size={10} /> {relatedNotice.date}
                         </span>
                       )}
                     </div>
@@ -668,14 +692,26 @@ function App() {
                   )}
                   <div className="harvestMiniActions">
                     {pickupStatus.key === 'pending' && (
-                      <button
-                        type="button"
-                        className={`miniBtn ${pickupStatus.isOverdue ? 'pickupOverdueBtn' : 'pickupPendingBtn'}`}
-                        onClick={() => confirmPickupFromDashboard(item.id)}
-                      >
-                        <CheckCircle2 size={12} />
-                        {pickupStatus.isOverdue ? '标记已取' : '确认取菜'}
-                      </button>
+                      <>
+                        {!noticeExists && (
+                          <button
+                            type="button"
+                            className="miniBtn"
+                            style={{ background: '#e8f0fa', color: '#2c5f8a', borderColor: '#a0c0e0' }}
+                            onClick={() => generatePickupNoticeFromDashboard(item.id)}
+                          >
+                            <Bell size={12} />发送通知
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className={`miniBtn ${pickupStatus.isOverdue ? 'pickupOverdueBtn' : 'pickupPendingBtn'}`}
+                          onClick={() => confirmPickupFromDashboard(item.id)}
+                        >
+                          <CheckCircle2 size={12} />
+                          {pickupStatus.isOverdue ? '标记已取' : '确认取菜'}
+                        </button>
+                      </>
                     )}
                     <button type="button" className="miniBtn distributionBtn" onClick={() => setDistEditingHarvest(item)}>
                       <Package size={12} />{item.distribution ? '编辑分配' : '登记分配'}
@@ -1459,6 +1495,9 @@ function App() {
           harvestForm={harvestForm}
           setHarvestForm={setHarvestForm}
           addHarvest={addHarvest}
+          beds={beds}
+          contacts={contacts}
+          setContacts={setContacts}
         />
       )}
 
@@ -1505,6 +1544,9 @@ function App() {
             confirmPickupFromDashboard(distEditingHarvest.id);
             setDistEditingHarvest(null);
           }}
+          beds={beds}
+          contacts={contacts}
+          setContacts={setContacts}
         />
       )}
     </main>

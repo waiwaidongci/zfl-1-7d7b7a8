@@ -230,3 +230,76 @@ export const getDistributionStats = (harvests) => {
     remainingWeight: Math.max(0, totalWeight - distributedWeight)
   };
 };
+
+export const PICKUP_NOTICE_DAYS_OFFSET = 1;
+
+export const findBedByName = (beds, bedName) => {
+  if (!beds || !bedName) return null;
+  return beds.find(b => b.name === bedName) || null;
+};
+
+export const getExpectedPickupDate = (baseDateStr, offsetDays = PICKUP_NOTICE_DAYS_OFFSET) => {
+  const base = new Date(baseDateStr || new Date().toISOString().slice(0, 10));
+  base.setDate(base.getDate() + offsetDays);
+  return base.toISOString().slice(0, 10);
+};
+
+export const generatePickupNoticeContent = (harvest, expectedDate) => {
+  if (!harvest) return '';
+  const weight = harvest.distribution?.selfPickup || '';
+  const date = expectedDate || getExpectedPickupDate(harvest.distribution?.distributionUpdatedAt || harvest.date);
+  return `【取菜通知】${harvest.crop}已采收${weight ? `（${weight}）` : ''}，请于${date}前来菜园自取。如有困难请提前联系值班志愿者。`;
+};
+
+export const generatePickupNoticeContact = (harvest, beds) => {
+  if (!harvest || !harvest.distribution?.selfPickup) return null;
+  const bed = findBedByName(beds, harvest.bed);
+  if (!bed || !bed.adopter) return null;
+
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10);
+  const timeStr = now.toTimeString().slice(0, 5);
+  const expectedDate = getExpectedPickupDate(harvest.distribution?.distributionUpdatedAt || harvest.date);
+
+  return {
+    id: crypto.randomUUID(),
+    bedId: bed.id,
+    bedName: bed.name,
+    adopter: bed.adopter,
+    phone: bed.phone || '',
+    type: '取菜通知',
+    date: dateStr,
+    time: timeStr,
+    content: generatePickupNoticeContent(harvest, expectedDate),
+    note: `作物：${harvest.crop}；重量：${harvest.distribution.selfPickup}；预计取菜日期：${expectedDate}`,
+    relatedHarvestId: harvest.id,
+    pickupNoticeSentAt: now.toISOString(),
+    expectedPickupDate: expectedDate,
+    pickupStatus: 'pending'
+  };
+};
+
+export const findRelatedPickupNotice = (contacts, harvestId) => {
+  if (!contacts || !harvestId) return null;
+  return contacts.find(c => c.relatedHarvestId === harvestId && c.type === '取菜通知') || null;
+};
+
+export const confirmPickupContact = (contacts, harvestId) => {
+  if (!contacts || !harvestId) return contacts;
+  return contacts.map(c => {
+    if (c.relatedHarvestId !== harvestId || c.type !== '取菜通知') return c;
+    const now = new Date().toISOString();
+    return {
+      ...c,
+      pickupStatus: 'confirmed',
+      pickupConfirmedAt: now,
+      note: c.note
+        ? `${c.note} · 已于${now.slice(5, 16)}确认取菜`
+        : `已于${now.slice(5, 16)}确认取菜`
+    };
+  });
+};
+
+export const checkPickupNoticeExists = (contacts, harvestId) => {
+  return !!findRelatedPickupNotice(contacts, harvestId);
+};

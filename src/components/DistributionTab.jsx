@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   Wheat, Search, AlertCircle, CheckCircle2, Clock, Package,
-  User, Users, Heart, Trash2, Filter, CalendarDays
+  User, Users, Heart, Trash2, Filter, CalendarDays, Bell, MessageCircle
 } from 'lucide-react';
 import { DistributionModal } from './DistributionModal';
 import {
@@ -16,7 +16,11 @@ import {
   getDistributionRemaining,
   getPickupStatus,
   getPickupStats,
-  getPickupWarnings
+  getPickupWarnings,
+  generatePickupNoticeContact,
+  confirmPickupContact,
+  checkPickupNoticeExists,
+  findRelatedPickupNotice
 } from '../utils/distribution';
 import { iso } from '../data/seedData';
 
@@ -27,7 +31,10 @@ const typeIcons = {
   loss: Trash2
 };
 
-export function DistributionTab({ harvests, setHarvests, harvestOptions, harvestForm, setHarvestForm, addHarvest }) {
+export function DistributionTab({
+  harvests, setHarvests, harvestOptions, harvestForm, setHarvestForm, addHarvest,
+  beds, contacts, setContacts
+}) {
   const [editingHarvest, setEditingHarvest] = useState(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [query, setQuery] = useState('');
@@ -35,6 +42,16 @@ export function DistributionTab({ harvests, setHarvests, harvestOptions, harvest
   const stats = useMemo(() => getDistributionStats(harvests), [harvests]);
   const pickupStats = useMemo(() => getPickupStats(harvests), [harvests]);
   const pickupWarnings = useMemo(() => getPickupWarnings(harvests), [harvests]);
+
+  const generatePickupNotice = (harvestId) => {
+    const harvest = harvests.find(h => h.id === harvestId);
+    if (!harvest || !harvest.distribution?.selfPickup) return;
+    if (checkPickupNoticeExists(contacts, harvestId)) return;
+    const contact = generatePickupNoticeContact(harvest, beds);
+    if (contact) {
+      setContacts([contact, ...contacts]);
+    }
+  };
 
   const confirmPickup = (harvestId) => {
     setHarvests(harvests.map((h) => {
@@ -48,6 +65,9 @@ export function DistributionTab({ harvests, setHarvests, harvestOptions, harvest
         }
       };
     }));
+    if (checkPickupNoticeExists(contacts, harvestId)) {
+      setContacts(confirmPickupContact(contacts, harvestId));
+    }
   };
 
   const filteredHarvests = useMemo(() => {
@@ -167,11 +187,18 @@ export function DistributionTab({ harvests, setHarvests, harvestOptions, harvest
               return ps.key === 'pending' && ps.isOverdue;
             }).slice(0, 4).map((h) => {
               const ps = getPickupStatus(h);
+              const noticeSent = checkPickupNoticeExists(contacts, h.id);
+              const relatedNotice = findRelatedPickupNotice(contacts, h.id);
               return (
                 <div key={h.id} className="warningCard" style={{ background: '#fef4ef', borderColor: '#e8b0a0' }}>
                   <div className="warningInfo">
                     <strong style={{ color: '#7a2a1a' }}>{h.crop}</strong>
                     <span style={{ fontSize: '12px', color: '#9a6a5a' }}>{h.bed} · 自取 {h.distribution?.selfPickup}</span>
+                    {relatedNotice && (
+                      <span style={{ fontSize: '11px', color: '#2c5f8a', marginTop: '2px' }}>
+                        <MessageCircle size={10} /> 通知 {relatedNotice.date}
+                      </span>
+                    )}
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <span style={{ fontSize: '14px', fontWeight: '600', color: '#8b3f23' }}>
@@ -180,9 +207,16 @@ export function DistributionTab({ harvests, setHarvests, harvestOptions, harvest
                     <span style={{ display: 'block', fontSize: '12px', color: '#b07a5a' }}>
                       请尽快联系认养人
                     </span>
-                    <button type="button" className="miniBtn" style={{ marginTop: '6px', marginLeft: 0, background: '#fde8dd', color: '#8b3f23', borderColor: '#e8b0a0' }} onClick={() => confirmPickup(h.id)}>
-                      <CheckCircle2 size={12} />标记已取
-                    </button>
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                      {!noticeSent && (
+                        <button type="button" className="miniBtn" style={{ background: '#e8f0fa', color: '#2c5f8a', borderColor: '#a0c0e0' }} onClick={() => generatePickupNotice(h.id)}>
+                          <Bell size={12} />发送通知
+                        </button>
+                      )}
+                      <button type="button" className="miniBtn" style={{ background: '#fde8dd', color: '#8b3f23', borderColor: '#e8b0a0' }} onClick={() => confirmPickup(h.id)}>
+                        <CheckCircle2 size={12} />标记已取
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -200,11 +234,18 @@ export function DistributionTab({ harvests, setHarvests, harvestOptions, harvest
               return ps.key === 'pending' && !ps.isOverdue;
             }).slice(0, 4).map((h) => {
               const ps = getPickupStatus(h);
+              const noticeSent = checkPickupNoticeExists(contacts, h.id);
+              const relatedNotice = findRelatedPickupNotice(contacts, h.id);
               return (
                 <div key={h.id} className="warningCard" style={{ background: '#f2f7fc', borderColor: '#a0c0e0' }}>
                   <div className="warningInfo">
                     <strong style={{ color: '#1e4a6a' }}>{h.crop}</strong>
                     <span style={{ fontSize: '12px', color: '#5a7a9a' }}>{h.bed} · 自取 {h.distribution?.selfPickup}</span>
+                    {relatedNotice && (
+                      <span style={{ fontSize: '11px', color: '#2c5f8a', marginTop: '2px' }}>
+                        <MessageCircle size={10} /> 通知 {relatedNotice.date}
+                      </span>
+                    )}
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <span style={{ fontSize: '14px', fontWeight: '600', color: '#2c5f8a' }}>
@@ -213,9 +254,16 @@ export function DistributionTab({ harvests, setHarvests, harvestOptions, harvest
                     <span style={{ display: 'block', fontSize: '12px', color: '#6a8aaa' }}>
                       待认养人取走
                     </span>
-                    <button type="button" className="miniBtn" style={{ marginTop: '6px', marginLeft: 0 }} onClick={() => confirmPickup(h.id)}>
-                      <CheckCircle2 size={12} />确认取菜
-                    </button>
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                      {!noticeSent && (
+                        <button type="button" className="miniBtn" style={{ marginTop: 0, marginLeft: 0, background: '#e8f0fa', color: '#2c5f8a', borderColor: '#a0c0e0' }} onClick={() => generatePickupNotice(h.id)}>
+                          <Bell size={12} />发送通知
+                        </button>
+                      )}
+                      <button type="button" className="miniBtn" style={{ marginTop: 0, marginLeft: 0 }} onClick={() => confirmPickup(h.id)}>
+                        <CheckCircle2 size={12} />确认取菜
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -336,14 +384,27 @@ export function DistributionTab({ harvests, setHarvests, harvestOptions, harvest
 
                     <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap' }}>
                       {pickup.key === 'pending' && (
-                        <button
-                          type="button"
-                          className={`miniBtn ${pickup.isOverdue ? 'pickupOverdueBtn' : 'pickupPendingBtn'}`}
-                          onClick={() => confirmPickup(harvest.id)}
-                        >
-                          <CheckCircle2 size={12} />
-                          {pickup.isOverdue ? '标记已取' : '确认取菜'}
-                        </button>
+                        <>
+                          {!checkPickupNoticeExists(contacts, harvest.id) && (
+                            <button
+                              type="button"
+                              className="miniBtn pickupNoticeBtn"
+                              onClick={() => generatePickupNotice(harvest.id)}
+                              style={{ background: '#e8f0fa', color: '#2c5f8a', borderColor: '#a0c0e0' }}
+                            >
+                              <Bell size={12} />
+                              发送取菜通知
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className={`miniBtn ${pickup.isOverdue ? 'pickupOverdueBtn' : 'pickupPendingBtn'}`}
+                            onClick={() => confirmPickup(harvest.id)}
+                          >
+                            <CheckCircle2 size={12} />
+                            {pickup.isOverdue ? '标记已取' : '确认取菜'}
+                          </button>
+                        </>
                       )}
                       {pickup.key === 'confirmed' && (
                         <span className="pickupConfirmedBadge">
@@ -373,6 +434,9 @@ export function DistributionTab({ harvests, setHarvests, harvestOptions, harvest
             confirmPickup(editingHarvest.id);
             setEditingHarvest(null);
           }}
+          beds={beds}
+          contacts={contacts}
+          setContacts={setContacts}
         />
       )}
     </>

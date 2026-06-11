@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, AlertCircle, User, Users, Heart, Trash2, Wheat, CheckCircle2, Clock, CalendarDays } from 'lucide-react';
+import { X, AlertCircle, User, Users, Heart, Trash2, Wheat, CheckCircle2, Clock, CalendarDays, Bell, MessageCircle } from 'lucide-react';
 import {
   DISTRIBUTION_TYPES,
   PICKUP_CONFIRM_OVERDUE_DAYS,
@@ -8,7 +8,11 @@ import {
   getDistributionTotal,
   validateDistribution,
   getPickupStatus,
-  getSelfPickupGrams
+  getSelfPickupGrams,
+  generatePickupNoticeContact,
+  confirmPickupContact,
+  checkPickupNoticeExists,
+  findRelatedPickupNotice
 } from '../utils/distribution';
 
 const typeIcons = {
@@ -25,7 +29,10 @@ const typeClassNames = {
   loss: 'loss'
 };
 
-export function DistributionModal({ harvest, onClose, onSave, onConfirmPickup }) {
+export function DistributionModal({
+  harvest, onClose, onSave, onConfirmPickup,
+  beds, contacts, setContacts
+}) {
   const [form, setForm] = useState({
     selfPickup: '',
     communityShare: '',
@@ -75,6 +82,26 @@ export function DistributionModal({ harvest, onClose, onSave, onConfirmPickup })
     return getPickupStatus(fakeHarvest);
   }, [harvest, form, displayedConfirmedAt, isAddingSelfPickup, pendingConfirmedAt]);
 
+  const noticeExists = useMemo(() => harvest ? checkPickupNoticeExists(contacts, harvest.id) : false, [contacts, harvest]);
+  const relatedNotice = useMemo(() => harvest ? findRelatedPickupNotice(contacts, harvest.id) : null, [contacts, harvest]);
+
+  const handleGenerateNotice = () => {
+    if (!harvest || !form.selfPickup || !parseWeight(form.selfPickup)) return;
+    if (noticeExists) return;
+    const tempHarvest = {
+      ...harvest,
+      distribution: {
+        ...harvest.distribution,
+        ...form,
+        distributionUpdatedAt: harvest?.distribution?.distributionUpdatedAt || new Date().toISOString().slice(0, 10)
+      }
+    };
+    const contact = generatePickupNoticeContact(tempHarvest, beds);
+    if (contact) {
+      setContacts([contact, ...contacts]);
+    }
+  };
+
   const handleChange = (key, value) => {
     setForm({ ...form, [key]: value });
     if (key === 'selfPickup' && (!value || !parseWeight(value))) {
@@ -92,12 +119,18 @@ export function DistributionModal({ harvest, onClose, onSave, onConfirmPickup })
     }
     if (selfPickupConfirmed && selfPickupGrams > 0) {
       cleaned.selfPickupConfirmedAt = displayedConfirmedAt;
+      if (harvest && checkPickupNoticeExists(contacts, harvest.id)) {
+        setContacts(confirmPickupContact(contacts, harvest.id));
+      }
     }
     onSave(Object.keys(cleaned).length > 0 ? cleaned : null);
   };
 
   const handleQuickConfirm = () => {
     if (selfPickupGrams > 0 && onConfirmPickup) {
+      if (harvest && checkPickupNoticeExists(contacts, harvest.id)) {
+        setContacts(confirmPickupContact(contacts, harvest.id));
+      }
       onConfirmPickup();
     }
   };
@@ -187,6 +220,12 @@ export function DistributionModal({ harvest, onClose, onSave, onConfirmPickup })
                             <CalendarDays size={12} />
                             确认时间：{displayedConfirmedAt}
                           </span>
+                          {relatedNotice && (
+                            <span className="pickupConfirmDate" style={{ marginTop: '2px' }}>
+                              <MessageCircle size={12} />
+                              通知记录：{relatedNotice.date} {relatedNotice.time}
+                            </span>
+                          )}
                         </div>
                       </>
                     ) : (
@@ -199,28 +238,47 @@ export function DistributionModal({ harvest, onClose, onSave, onConfirmPickup })
                           <span className="pickupConfirmDate">
                             认养人自取：{formatWeight(selfPickupGrams)} · {PICKUP_CONFIRM_OVERDUE_DAYS}天内确认有效
                           </span>
+                          {relatedNotice && (
+                            <span className="pickupConfirmDate" style={{ marginTop: '2px', color: '#2c5f8a' }}>
+                              <MessageCircle size={12} />
+                              已发送通知：{relatedNotice.date} {relatedNotice.time}
+                            </span>
+                          )}
                         </div>
                       </>
                     )}
                   </div>
-                  {!selfPickupConfirmed ? (
-                    <button
-                      type="button"
-                      className="pickupConfirmBtn"
-                      onClick={() => setSelfPickupConfirmed(true)}
-                    >
-                      <CheckCircle2 size={14} />
-                      确认已取走
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="pickupUndoBtn"
-                      onClick={() => setSelfPickupConfirmed(false)}
-                    >
-                      撤销确认
-                    </button>
-                  )}
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    {!selfPickupConfirmed && !noticeExists && (
+                      <button
+                        type="button"
+                        className="pickupNoticeModalBtn"
+                        onClick={handleGenerateNotice}
+                        style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #a0c0e0', background: '#e8f0fa', color: '#2c5f8a', cursor: 'pointer', fontSize: '13px', fontWeight: '500', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        <Bell size={12} />
+                        发送取菜通知
+                      </button>
+                    )}
+                    {!selfPickupConfirmed ? (
+                      <button
+                        type="button"
+                        className="pickupConfirmBtn"
+                        onClick={() => setSelfPickupConfirmed(true)}
+                      >
+                        <CheckCircle2 size={14} />
+                        确认已取走
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="pickupUndoBtn"
+                        onClick={() => setSelfPickupConfirmed(false)}
+                      >
+                        撤销确认
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
