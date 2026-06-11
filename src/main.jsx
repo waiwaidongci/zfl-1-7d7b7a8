@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { CalendarDays, Clock, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, User, Heart } from 'lucide-react';
+import { CalendarDays, Clock, CheckCircle2, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, User, Heart } from 'lucide-react';
 import './styles.css';
 
 import {
@@ -12,13 +12,17 @@ import { DistributionTab } from './components/DistributionTab';
 import { DistributionModal } from './components/DistributionModal';
 import {
   DISTRIBUTION_TYPES,
+  PICKUP_CONFIRM_OVERDUE_DAYS,
   parseWeight,
   formatWeight,
   getDistributionTotal,
   getDistributionStatus,
   getDistributionWarnings,
   getDistributionRemaining,
-  getDistributionStats
+  getDistributionStats,
+  getPickupStatus,
+  getPickupWarnings,
+  getAllWarnings
 } from './utils/distribution';
 
 const today = new Date();
@@ -81,6 +85,20 @@ function App() {
       h.id === harvestId ? { ...h, distribution, distributionUpdatedAt: iso(0) } : h
     ));
     setDistEditingHarvest(null);
+  };
+
+  const confirmPickupFromDashboard = (harvestId) => {
+    setHarvests(harvests.map((h) => {
+      if (h.id !== harvestId) return h;
+      if (!h.distribution || !h.distribution.selfPickup) return h;
+      return {
+        ...h,
+        distribution: {
+          ...h.distribution,
+          selfPickupConfirmedAt: iso(0)
+        }
+      };
+    }));
   };
 
   const toggleTask = (id) => setTasks(tasks.map((task) => task.id === id ? { ...task, done: !task.done } : task));
@@ -569,6 +587,7 @@ function App() {
               <h2>最近采摘</h2>
               {harvests.slice(0, 4).map((item) => {
                 const distStatus = getDistributionStatus(item);
+                const pickupStatus = getPickupStatus(item);
                 const distTotal = getDistributionTotal(item.distribution);
                 const distRemaining = getDistributionRemaining(item);
                 const typeIcons = { selfPickup: User, communityShare: Users, volunteerSample: Heart, loss: Trash2 };
@@ -576,10 +595,19 @@ function App() {
                 <div key={item.id} className="harvestMiniCard">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <p className="row" style={{ margin: 0 }}><Wheat size={16} />{item.crop} {item.weight}<span>{item.date}</span></p>
-                    <span className={`distributionStatusTag ${distStatus.key} ${distStatus.isOverdue ? 'overdue' : ''}`}>
-                      {distStatus.isOverdue && <AlertCircle size={12} />}
-                      {distStatus.label}
-                    </span>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <span className={`distributionStatusTag ${distStatus.key} ${distStatus.isOverdue ? 'overdue' : ''}`}>
+                        {distStatus.isOverdue && <AlertCircle size={12} />}
+                        {distStatus.label}
+                      </span>
+                      {pickupStatus.key !== 'none' && (
+                        <span className={`pickupStatusTag ${pickupStatus.key} ${pickupStatus.isOverdue ? 'overdue' : ''}`}>
+                          {pickupStatus.key === 'confirmed' ? <CheckCircle2 size={12} /> : pickupStatus.isOverdue ? <AlertCircle size={12} /> : <Clock size={12} />}
+                          {pickupStatus.label}
+                          {pickupStatus.key === 'confirmed' && pickupStatus.confirmedAt && ` · ${pickupStatus.confirmedAt.slice(5)}`}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {item.distribution && (
                     <div className="distributionMiniSummary">
@@ -601,6 +629,15 @@ function App() {
                       {distRemaining > 0 && ` · 剩余 ${formatWeight(distRemaining)}`}
                     </p>
                   )}
+                  {pickupStatus.key === 'pending' && (
+                    <p style={{ margin: '6px 0 0', fontSize: '12px', color: pickupStatus.isOverdue ? '#8b3f23' : '#2c5f8a' }}>
+                      {pickupStatus.isOverdue
+                        ? `⚠️ 自取超期${pickupStatus.daysSince - PICKUP_CONFIRM_OVERDUE_DAYS}天未取`
+                        : '⏳ 待认养人取菜'
+                      }
+                      {item.distribution?.selfPickup && ` · ${item.distribution.selfPickup}`}
+                    </p>
+                  )}
                   {consumptionsByHarvestId[item.id] && consumptionsByHarvestId[item.id].length > 0 && (
                     <div className="taskConsumptions">
                       {consumptionsByHarvestId[item.id].map((c) => {
@@ -614,6 +651,16 @@ function App() {
                     </div>
                   )}
                   <div className="harvestMiniActions">
+                    {pickupStatus.key === 'pending' && (
+                      <button
+                        type="button"
+                        className={`miniBtn ${pickupStatus.isOverdue ? 'pickupOverdueBtn' : 'pickupPendingBtn'}`}
+                        onClick={() => confirmPickupFromDashboard(item.id)}
+                      >
+                        <CheckCircle2 size={12} />
+                        {pickupStatus.isOverdue ? '标记已取' : '确认取菜'}
+                      </button>
+                    )}
                     <button type="button" className="miniBtn distributionBtn" onClick={() => setDistEditingHarvest(item)}>
                       <Package size={12} />{item.distribution ? '编辑分配' : '登记分配'}
                     </button>
@@ -627,13 +674,13 @@ function App() {
             </article>
             <article>
               <h2>异常提醒</h2>
-              {warnings.length === 0 && getDistributionWarnings(harvests).length === 0
+              {warnings.length === 0 && getAllWarnings(harvests).length === 0
                 ? <p className="muted">暂无异常</p>
                 : <>
                     {warnings.map((bed) => <p className="row alert" key={bed.id}><TriangleAlert size={16} />{bed.name}<span>{bed.warning}</span></p>)}
-                    {getDistributionWarnings(harvests).map((w) => (
-                      <p className={`row alert ${w.type === 'critical' ? 'critical' : 'harvestWarning'}`} key={w.id}>
-                        {w.type === 'critical' ? <AlertCircle size={16} /> : <TriangleAlert size={16} />}
+                    {getAllWarnings(harvests).map((w) => (
+                      <p className={`row alert ${w.type === 'critical' ? 'critical' : w.type === 'pickupPending' ? 'pickupPendingWarning' : 'harvestWarning'}`} key={w.id}>
+                        {w.type === 'critical' ? <AlertCircle size={16} /> : <Clock size={16} />}
                         {w.label}（{w.bed}）
                         <span>{w.message}</span>
                       </p>
@@ -1404,6 +1451,10 @@ function App() {
           harvest={distEditingHarvest}
           onClose={() => setDistEditingHarvest(null)}
           onSave={(dist) => saveDistributionFromDashboard(distEditingHarvest.id, dist)}
+          onConfirmPickup={() => {
+            confirmPickupFromDashboard(distEditingHarvest.id);
+            setDistEditingHarvest(null);
+          }}
         />
       )}
     </main>

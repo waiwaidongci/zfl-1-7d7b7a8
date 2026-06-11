@@ -6,6 +6,7 @@ export const DISTRIBUTION_TYPES = [
 ];
 
 export const DISTRIBUTION_OVERDUE_DAYS = 3;
+export const PICKUP_CONFIRM_OVERDUE_DAYS = 2;
 
 export const parseWeight = (weightStr) => {
   if (!weightStr || typeof weightStr !== 'string') return 0;
@@ -107,6 +108,97 @@ export const getDistributionWarnings = (harvests) => {
     }
   }
   return warnings;
+};
+
+export const getSelfPickupGrams = (distribution) => {
+  if (!distribution || !distribution.selfPickup) return 0;
+  return parseWeight(distribution.selfPickup);
+};
+
+export const getPickupStatus = (harvest) => {
+  const dist = harvest?.distribution;
+  const selfPickupGrams = getSelfPickupGrams(dist);
+  if (selfPickupGrams === 0) {
+    return { key: 'none', label: '未登记自取', isOverdue: false };
+  }
+  if (dist?.selfPickupConfirmedAt) {
+    return { key: 'confirmed', label: '已取菜', isOverdue: false, confirmedAt: dist.selfPickupConfirmedAt };
+  }
+  const baseDate = dist.distributionUpdatedAt || harvest.date;
+  const pickupDate = new Date(baseDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  pickupDate.setHours(0, 0, 0, 0);
+  const daysSince = Math.floor((today - pickupDate) / 86400000);
+  const isOverdue = daysSince > PICKUP_CONFIRM_OVERDUE_DAYS;
+  return {
+    key: 'pending',
+    label: isOverdue ? '超期未取' : '待取菜',
+    isOverdue,
+    daysSince
+  };
+};
+
+export const getPickupWarnings = (harvests) => {
+  const warnings = [];
+  for (const h of harvests) {
+    const pickup = getPickupStatus(h);
+    if (pickup.key === 'pending' && pickup.isOverdue) {
+      warnings.push({
+        id: `pickup-overdue-${h.id}`,
+        type: 'critical',
+        label: h.crop,
+        bed: h.bed,
+        date: h.date,
+        selfPickupWeight: h.distribution?.selfPickup,
+        daysSince: pickup.daysSince,
+        message: `${h.crop}（${h.bed}）认养人自取${h.distribution?.selfPickup || ''}已超期${pickup.daysSince - PICKUP_CONFIRM_OVERDUE_DAYS}天未取走`
+      });
+    } else if (pickup.key === 'pending' && !pickup.isOverdue) {
+      warnings.push({
+        id: `pickup-pending-${h.id}`,
+        type: 'pickupPending',
+        label: h.crop,
+        bed: h.bed,
+        date: h.date,
+        selfPickupWeight: h.distribution?.selfPickup,
+        daysSince: pickup.daysSince,
+        message: `${h.crop}（${h.bed}）待认养人自取${h.distribution?.selfPickup || ''}`
+      });
+    }
+  }
+  return warnings;
+};
+
+export const getAllWarnings = (harvests) => {
+  return [...getDistributionWarnings(harvests), ...getPickupWarnings(harvests)];
+};
+
+export const getPickupStats = (harvests) => {
+  let pending = 0;
+  let confirmed = 0;
+  let overdue = 0;
+  let pendingWeight = 0;
+  let overdueWeight = 0;
+  let confirmedWeight = 0;
+
+  for (const h of harvests) {
+    const pickup = getPickupStatus(h);
+    const grams = getSelfPickupGrams(h.distribution);
+    if (pickup.key === 'pending') {
+      pending++;
+      pendingWeight += grams;
+      if (pickup.isOverdue) {
+        overdue++;
+        overdueWeight += grams;
+      }
+    } else if (pickup.key === 'confirmed') {
+      confirmed++;
+      confirmedWeight += grams;
+    }
+  }
+
+  return { pending, confirmed, overdue, pendingWeight, overdueWeight, confirmedWeight };
 };
 
 export const getDistributionStats = (harvests) => {

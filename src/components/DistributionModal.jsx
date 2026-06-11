@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, AlertCircle, User, Users, Heart, Trash2, Wheat } from 'lucide-react';
+import { X, AlertCircle, User, Users, Heart, Trash2, Wheat, CheckCircle2, Clock, CalendarDays } from 'lucide-react';
 import {
   DISTRIBUTION_TYPES,
+  PICKUP_CONFIRM_OVERDUE_DAYS,
   parseWeight,
   formatWeight,
   getDistributionTotal,
-  validateDistribution
+  validateDistribution,
+  getPickupStatus,
+  getSelfPickupGrams
 } from '../utils/distribution';
 
 const typeIcons = {
@@ -22,13 +25,14 @@ const typeClassNames = {
   loss: 'loss'
 };
 
-export function DistributionModal({ harvest, onClose, onSave }) {
+export function DistributionModal({ harvest, onClose, onSave, onConfirmPickup }) {
   const [form, setForm] = useState({
     selfPickup: '',
     communityShare: '',
     volunteerSample: '',
     loss: ''
   });
+  const [selfPickupConfirmed, setSelfPickupConfirmed] = useState(false);
 
   useEffect(() => {
     if (harvest?.distribution) {
@@ -38,8 +42,10 @@ export function DistributionModal({ harvest, onClose, onSave }) {
         volunteerSample: harvest.distribution.volunteerSample || '',
         loss: harvest.distribution.loss || ''
       });
+      setSelfPickupConfirmed(!!harvest.distribution.selfPickupConfirmedAt);
     } else {
       setForm({ selfPickup: '', communityShare: '', volunteerSample: '', loss: '' });
+      setSelfPickupConfirmed(false);
     }
   }, [harvest]);
 
@@ -50,8 +56,25 @@ export function DistributionModal({ harvest, onClose, onSave }) {
   const isOver = distributedGrams > totalGrams && totalGrams > 0;
   const progress = totalGrams > 0 ? Math.min(100, (distributedGrams / totalGrams) * 100) : 0;
 
+  const selfPickupGrams = useMemo(() => getSelfPickupGrams(form), [form]);
+  const pickupStatus = useMemo(() => {
+    if (!harvest) return { key: 'none' };
+    const fakeHarvest = {
+      ...harvest,
+      distribution: {
+        ...form,
+        selfPickupConfirmedAt: selfPickupConfirmed ? harvest?.distribution?.selfPickupConfirmedAt || new Date().toISOString().slice(0, 10) : undefined,
+        distributionUpdatedAt: harvest?.distribution?.distributionUpdatedAt
+      }
+    };
+    return getPickupStatus(fakeHarvest);
+  }, [harvest, form, selfPickupConfirmed]);
+
   const handleChange = (key, value) => {
     setForm({ ...form, [key]: value });
+    if (key === 'selfPickup' && (!value || !parseWeight(value))) {
+      setSelfPickupConfirmed(false);
+    }
   };
 
   const handleSubmit = (e) => {
@@ -62,7 +85,16 @@ export function DistributionModal({ harvest, onClose, onSave }) {
       const v = form[t.key]?.trim();
       if (v) cleaned[t.key] = v;
     }
+    if (selfPickupConfirmed && selfPickupGrams > 0) {
+      cleaned.selfPickupConfirmedAt = harvest?.distribution?.selfPickupConfirmedAt || new Date().toISOString().slice(0, 10);
+    }
     onSave(Object.keys(cleaned).length > 0 ? cleaned : null);
+  };
+
+  const handleQuickConfirm = () => {
+    if (selfPickupGrams > 0 && onConfirmPickup) {
+      onConfirmPickup();
+    }
   };
 
   if (!harvest) return null;
@@ -136,6 +168,57 @@ export function DistributionModal({ harvest, onClose, onSave }) {
                 );
               })}
             </div>
+
+            {selfPickupGrams > 0 && (
+              <div className={`pickupConfirmSection ${pickupStatus.isOverdue ? 'overdue' : ''} ${selfPickupConfirmed ? 'confirmed' : ''}`}>
+                <div className="pickupConfirmHeader">
+                  <div className="pickupConfirmInfo">
+                    {selfPickupConfirmed ? (
+                      <>
+                        <CheckCircle2 size={18} style={{ color: '#3d7a2c' }} />
+                        <div>
+                          <strong style={{ color: '#3d7a2c' }}>已确认取菜</strong>
+                          <span className="pickupConfirmDate">
+                            <CalendarDays size={12} />
+                            确认时间：{harvest?.distribution?.selfPickupConfirmedAt}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <Clock size={18} style={{ color: pickupStatus.isOverdue ? '#8b3f23' : '#2c5f8a' }} />
+                        <div>
+                          <strong style={{ color: pickupStatus.isOverdue ? '#8b3f23' : '#2c5f8a' }}>
+                            {pickupStatus.isOverdue ? `超期未取（已超过${pickupStatus.daysSince - PICKUP_CONFIRM_OVERDUE_DAYS}天）` : '待认养人取菜'}
+                          </strong>
+                          <span className="pickupConfirmDate">
+                            认养人自取：{formatWeight(selfPickupGrams)} · {PICKUP_CONFIRM_OVERDUE_DAYS}天内确认有效
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  {!selfPickupConfirmed ? (
+                    <button
+                      type="button"
+                      className="pickupConfirmBtn"
+                      onClick={() => setSelfPickupConfirmed(true)}
+                    >
+                      <CheckCircle2 size={14} />
+                      确认已取走
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="pickupUndoBtn"
+                      onClick={() => setSelfPickupConfirmed(false)}
+                    >
+                      撤销确认
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {errors.length > 0 && (
               <div className="distributionError">
