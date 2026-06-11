@@ -62,4 +62,33 @@ button { border: 0; border-radius: 8px; padding: 12px 14px; background: #2f613a;
 .dutyTag.巡检 { background: #e8f5e3; color: #3d7a2c; }
 .scheduleNote { color: #6b7763; font-size: 14px; margin: 4px 0 0; padding-top: 8px; border-top: 1px dashed #dfe7d7; }
 
-@media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } }
+.lastContact { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: #6b7763; padding-top: 8px; border-top: 1px dashed #dfe7d7; margin-top: 8px !important; }
+.lastContactType { background: #eef5e9; color: #5f7648; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+.lastContactText { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lastContactDate { color: #87917f; font-size: 12px; }
+
+.toolbarActions { display: flex; gap: 10px; align-items: center; }
+.filterSelect { width: auto; min-width: 120px; }
+
+.contactList { display: grid; gap: 12px; }
+.contactCard { background: #fbfcf8; border: 1px solid #dfe7d7; border-radius: 8px; padding: 16px; box-shadow: none; }
+.contactHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.contactMeta { display: flex; align-items: center; gap: 10px; }
+.contactBed { font-size: 16px; color: #243222; }
+.contactActions { display: flex; align-items: center; gap: 10px; }
+.contactDateTime { color: #71806a; font-size: 13px; }
+.contactBody { display: flex; flex-direction: column; gap: 8px; }
+.contactAdopter { display: flex; align-items: center; gap: 6px; color: #55624e; margin: 0; }
+.contactAdopter span { color: #87917f; font-size: 13px; }
+.contactContent { color: #3c4d38; margin: 4px 0 0; line-height: 1.6; }
+.contactNote { color: #6b7763; font-size: 14px; margin: 4px 0 0; padding-top: 8px; border-top: 1px dashed #dfe7d7; }
+
+.contactTypeTag { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; }
+.contactTypeTag.电话 { background: #e3f0fb; color: #2c5f8a; }
+.contactTypeTag.微信 { background: #e8f5e3; color: #3d7a2c; }
+.contactTypeTag.现场沟通 { background: #f5ecd8; color: #8a6a2c; }
+.contactTypeTag.取菜通知 { background: #fbe3e3; color: #8a2c2c; }
+
+textarea { width: 100%; border: 1px solid #cdd8c3; border-radius: 8px; padding: 11px 12px; background: #fff; color: #243222; font-family: inherit; resize: vertical; }
+
+@media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } .toolbarActions { width: 100%; flex-direction: column; } .filterSelect { width: 100%; } .contactHeader { flex-direction: column; align-items: start; gap: 8px; } }

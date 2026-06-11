@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { CalendarDays, Clock, Droplets, Leaf, Plus, Search, Trash2, TriangleAlert, Users, Wheat } from 'lucide-react';
+import { CalendarDays, Clock, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat } from 'lucide-react';
 import './styles.css';
 
 const today = new Date();
@@ -34,6 +34,13 @@ const seedSchedules = [
   { id: crypto.randomUUID(), date: iso(5), weekday: '周二', volunteer: '陈志豪', phone: '13500002222', duty: '巡检', time: '17:00-19:00', note: '检查滴灌系统' }
 ];
 
+const seedContacts = [
+  { id: crypto.randomUUID(), bedId: seedBeds[0].id, bedName: 'A03薄荷香草畦', adopter: '林小满', phone: '13800001234', type: '电话', date: iso(-2), time: '15:30', content: '确认本周薄荷长势良好，邀请周末可采摘约300g，通知认养人周末自取', note: '已确认周六上午自取' },
+  { id: crypto.randomUUID(), bedId: seedBeds[0].id, bedName: 'A03薄荷香草畦', adopter: '林小满', phone: '13800001234', type: '微信', date: iso(-5), time: '09:15', content: '发送薄荷生长照片，回复很满意', note: '' },
+  { id: crypto.randomUUID(), bedId: seedBeds[1].id, bedName: 'B07番茄试验畦', adopter: '周原', phone: '13900004567', type: '现场沟通', date: iso(-1), time: '10:00', content: '认养人来菜园参观，介绍番茄养护要点', note: '赠送番茄苗2株' },
+  { id: crypto.randomUUID(), bedId: seedBeds[1].id, bedName: 'B07番茄试验畦', adopter: '周原', phone: '13900004567', type: '取菜通知', date: iso(-7), time: '16:45', content: '樱桃番茄成熟约500g，通知自取', note: '次日下午已取' }
+];
+
 function useStoredState(key, initialValue) {
   const [value, setValue] = useState(() => {
     const raw = localStorage.getItem(key);
@@ -53,11 +60,15 @@ function App() {
   const [harvests, setHarvests] = useStoredState('zfl-1-harvests', seedHarvests);
   const [tasks, setTasks] = useStoredState('zfl-1-tasks', seedTasks);
   const [schedules, setSchedules] = useStoredState('zfl-1-schedules', seedSchedules);
+  const [contacts, setContacts] = useStoredState('zfl-1-contacts', seedContacts);
   const [query, setQuery] = useState('');
+  const [contactQuery, setContactQuery] = useState('');
+  const [contactTypeFilter, setContactTypeFilter] = useState('');
   const [scheduleDateFilter, setScheduleDateFilter] = useState('');
   const [bedForm, setBedForm] = useState({ name: '', crop: '', adopter: '', phone: '', area: '', status: '认养中', nextWater: iso(2), warning: '' });
   const [harvestForm, setHarvestForm] = useState({ bed: '', crop: '', weight: '', date: iso(0), note: '' });
   const [scheduleForm, setScheduleForm] = useState({ date: iso(0), weekday: '', volunteer: '', phone: '', duty: '浇水', time: '09:00-11:00', note: '' });
+  const [contactForm, setContactForm] = useState({ bedId: '', bedName: '', adopter: '', phone: '', type: '电话', date: iso(0), time: '09:00', content: '', note: '' });
 
   const weekWater = beds.filter((bed) => {
     const days = (new Date(bed.nextWater) - today) / 86400000;
@@ -85,6 +96,41 @@ function App() {
   const advanceWater = (id) => setBeds(beds.map((bed) => bed.id === id ? { ...bed, nextWater: iso(3), warning: '' } : bed));
 
   const harvestOptions = useMemo(() => beds.map((bed) => bed.name), [beds]);
+  const contactBedOptions = useMemo(() => beds.filter((bed) => bed.adopter).map((bed) => ({ id: bed.id, name: bed.name, adopter: bed.adopter, phone: bed.phone })), [beds]);
+
+  const filteredContacts = useMemo(() => {
+    let result = [...contacts];
+    if (contactQuery.trim()) {
+      const q = contactQuery.trim();
+      result = result.filter((c) => `${c.bedName}${c.adopter}${c.phone}${c.content}${c.note}`.includes(q));
+    }
+    if (contactTypeFilter) {
+      result = result.filter((c) => c.type === contactTypeFilter);
+    }
+    return result.sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time));
+  }, [contacts, contactQuery, contactTypeFilter]);
+
+  const getLastContactByBed = useMemo(() => {
+    const map = {};
+    const sorted = [...contacts].sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time));
+    sorted.forEach((c) => {
+      if (!map[c.bedId]) {
+        map[c.bedId] = c;
+      }
+    });
+    return map;
+  }, [contacts]);
+
+  const contactStats = useMemo(() => {
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - 7);
+    const thisWeek = contacts.filter((c) => new Date(c.date) >= weekStart);
+    const byType = thisWeek.reduce((acc, c) => {
+      acc[c.type] = (acc[c.type] || 0) + 1;
+      return acc;
+    }, {});
+    return { total: thisWeek.length, byType };
+  }, [contacts]);
 
   const getWeekday = (dateStr) => {
     if (!dateStr) return '';
@@ -112,6 +158,26 @@ function App() {
 
   const deleteSchedule = (id) => {
     setSchedules(schedules.filter((s) => s.id !== id));
+  };
+
+  const selectContactBed = (bedId) => {
+    const bed = beds.find((b) => b.id === bedId);
+    if (bed) {
+      setContactForm({ ...contactForm, bedId: bed.id, bedName: bed.name, adopter: bed.adopter, phone: bed.phone });
+    } else {
+      setContactForm({ ...contactForm, bedId: '', bedName: '', adopter: '', phone: '' });
+    }
+  };
+
+  const addContact = (event) => {
+    event.preventDefault();
+    if (!contactForm.bedId || !contactForm.content.trim()) return;
+    setContacts([{ id: crypto.randomUUID(), ...contactForm }, ...contacts]);
+    setContactForm({ bedId: '', bedName: '', adopter: '', phone: '', type: '电话', date: iso(0), time: '09:00', content: '', note: '' });
+  };
+
+  const deleteContact = (id) => {
+    setContacts(contacts.filter((c) => c.id !== id));
   };
 
   const updateScheduleDate = (dateStr) => {
@@ -152,6 +218,9 @@ function App() {
       <nav className="tabs">
         <button className={activeTab === 'dashboard' ? 'tab active' : 'tab'} onClick={() => setActiveTab('dashboard')}>
           <Leaf size={16} />菜园总览
+        </button>
+        <button className={activeTab === 'contacts' ? 'tab active' : 'tab'} onClick={() => setActiveTab('contacts')}>
+          <MessageCircle size={16} />联系记录
         </button>
         <button className={activeTab === 'schedules' ? 'tab active' : 'tab'} onClick={() => setActiveTab('schedules')}>
           <Users size={16} />志愿者排班
@@ -207,6 +276,14 @@ function App() {
                     <span>{bed.crop}</span>
                     <p>{bed.adopter || '待认养'} · {bed.area} · {bed.status}</p>
                     <p><CalendarDays size={15} />下次浇水 {bed.nextWater}</p>
+                    {getLastContactByBed[bed.id] && (
+                      <p className="lastContact">
+                        <MessageCircle size={15} />
+                        <span className="lastContactType">{getLastContactByBed[bed.id].type}</span>
+                        <span className="lastContactText">{getLastContactByBed[bed.id].content.slice(0, 20)}...</span>
+                        <span className="lastContactDate">{getLastContactByBed[bed.id].date}</span>
+                      </p>
+                    )}
                   </article>
                 ))}
               </div>
@@ -235,6 +312,99 @@ function App() {
                   <small>{task.owner} · {task.due}</small>
                 </label>
               ))}
+            </div>
+          </section>
+        </>
+      )}
+
+      {activeTab === 'contacts' && (
+        <>
+          <section className="dashboard">
+            <article>
+              <h2>本周联系</h2>
+              <p className="statNumber">{contactStats.total}<span>次</span></p>
+            </article>
+            <article>
+              <h2>电话沟通</h2>
+              <p className="statNumber">{contactStats.byType['电话'] || 0}<span>次</span></p>
+            </article>
+            <article>
+              <h2>取菜通知</h2>
+              <p className="statNumber">{contactStats.byType['取菜通知'] || 0}<span>次</span></p>
+            </article>
+          </section>
+
+          <section className="workspace">
+            <form onSubmit={addContact} className="panel">
+              <h2><Plus size={18} />新增联系记录</h2>
+              <select value={contactForm.bedId} onChange={(e) => selectContactBed(e.target.value)}>
+                <option value="">选择菜畦（仅显示已认养）</option>
+                {contactBedOptions.map((bed) => <option key={bed.id} value={bed.id}>{bed.name} - {bed.adopter}</option>)}
+              </select>
+              <input placeholder="认养人" value={contactForm.adopter} onChange={(e) => setContactForm({ ...contactForm, adopter: e.target.value })} />
+              <input placeholder="联系电话" value={contactForm.phone} onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })} />
+              <select value={contactForm.type} onChange={(e) => setContactForm({ ...contactForm, type: e.target.value })}>
+                <option>电话</option>
+                <option>微信</option>
+                <option>现场沟通</option>
+                <option>取菜通知</option>
+              </select>
+              <div className="grid2">
+                <input type="date" value={contactForm.date} onChange={(e) => setContactForm({ ...contactForm, date: e.target.value })} />
+                <input type="time" value={contactForm.time} onChange={(e) => setContactForm({ ...contactForm, time: e.target.value })} />
+              </div>
+              <textarea placeholder="沟通内容" rows="4" value={contactForm.content} onChange={(e) => setContactForm({ ...contactForm, content: e.target.value })} />
+              <input placeholder="备注" value={contactForm.note} onChange={(e) => setContactForm({ ...contactForm, note: e.target.value })} />
+              <button>保存记录</button>
+            </form>
+
+            <div className="panel wide">
+              <div className="toolbar">
+                <h2>联系记录</h2>
+                <div className="toolbarActions">
+                  <select className="filterSelect" value={contactTypeFilter} onChange={(e) => setContactTypeFilter(e.target.value)}>
+                    <option value="">全部类型</option>
+                    <option>电话</option>
+                    <option>微信</option>
+                    <option>现场沟通</option>
+                    <option>取菜通知</option>
+                  </select>
+                  <label><Search size={16} /><input placeholder="搜索菜畦/认养人/内容" value={contactQuery} onChange={(e) => setContactQuery(e.target.value)} /></label>
+                </div>
+              </div>
+              <div className="contactList">
+                {filteredContacts.length === 0 ? (
+                  <p className="muted">暂无联系记录{contactQuery || contactTypeFilter ? '（请调整筛选条件）' : ''}</p>
+                ) : (
+                  filteredContacts.map((contact) => (
+                    <article className="contactCard" key={contact.id}>
+                      <div className="contactHeader">
+                        <div className="contactMeta">
+                          <span className={`contactTypeTag ${contact.type}`}>
+                            {contact.type === '电话' && <Phone size={12} />}
+                            {contact.type === '微信' && <MessageCircle size={12} />}
+                            {contact.type === '现场沟通' && <MapPin size={12} />}
+                            {contact.type === '取菜通知' && <Bell size={12} />}
+                            {contact.type}
+                          </span>
+                          <strong className="contactBed">{contact.bedName}</strong>
+                        </div>
+                        <div className="contactActions">
+                          <span className="contactDateTime">{contact.date} {contact.time}</span>
+                          <button className="deleteBtn" onClick={() => deleteContact(contact.id)}>
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="contactBody">
+                        <p className="contactAdopter"><Users size={14} />{contact.adopter} <span>{contact.phone}</span></p>
+                        <p className="contactContent">{contact.content}</p>
+                        {contact.note && <p className="contactNote">📝 {contact.note}</p>}
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
             </div>
           </section>
         </>
