@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { CalendarDays, Clock, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History } from 'lucide-react';
+import { CalendarDays, Clock, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, Wallet, Heart, CircleDollarSign, Timer, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 import './styles.css';
 
 const today = new Date();
@@ -73,6 +73,12 @@ const seedTransactions = [
   { id: crypto.randomUUID(), materialId: seedMaterials[3].id, materialName: '有机堆肥', category: '肥料', type: 'consume', quantity: 3, unit: '袋', date: iso(-1), relatedType: 'harvest', relatedId: seedHarvests[1].id, relatedName: '樱桃番茄 2.1kg', note: '采摘后追肥' }
 ];
 
+const seedFees = [
+  { id: crypto.randomUUID(), bedId: seedBeds[0].id, bedName: 'A03薄荷香草畦', adopter: '林小满', startDate: iso(-60), endDate: iso(30), amount: 600, paymentStatus: '已缴费', donationNote: '认养人额外捐赠200元用于购买滴灌设备' },
+  { id: crypto.randomUUID(), bedId: seedBeds[1].id, bedName: 'B07番茄试验畦', adopter: '周原', startDate: iso(-90), endDate: iso(5), amount: 800, paymentStatus: '待缴费', donationNote: '' },
+  { id: crypto.randomUUID(), bedId: seedBeds[1].id, bedName: 'B07番茄试验畦', adopter: '周原', startDate: iso(-180), endDate: iso(-90), amount: 800, paymentStatus: '欠费', donationNote: '上一周期欠费，需催缴' }
+];
+
 function useStoredState(key, initialValue) {
   const [value, setValue] = useState(() => {
     const raw = localStorage.getItem(key);
@@ -96,6 +102,7 @@ function App() {
   const [plants, setPlants] = useStoredState('zfl-1-plants', seedPlants);
   const [materials, setMaterials] = useStoredState('zfl-1-materials', seedMaterials);
   const [transactions, setTransactions] = useStoredState('zfl-1-transactions', seedTransactions);
+  const [fees, setFees] = useStoredState('zfl-1-fees', seedFees);
   const [query, setQuery] = useState('');
   const [contactQuery, setContactQuery] = useState('');
   const [contactTypeFilter, setContactTypeFilter] = useState('');
@@ -115,6 +122,9 @@ function App() {
   const [transactionMaterialFilter, setTransactionMaterialFilter] = useState('');
   const [editingMaterialId, setEditingMaterialId] = useState('');
   const [editingMaterialForm, setEditingMaterialForm] = useState({ name: '', category: '种子', unit: '', lowStockThreshold: 5, note: '' });
+  const [feeForm, setFeeForm] = useState({ bedId: '', bedName: '', adopter: '', startDate: iso(-30), endDate: iso(335), amount: '', paymentStatus: '待缴费', donationNote: '' });
+  const [feeQuery, setFeeQuery] = useState('');
+  const [feeStatusFilter, setFeeStatusFilter] = useState('');
 
   const weekWater = beds.filter((bed) => {
     const days = (new Date(bed.nextWater) - today) / 86400000;
@@ -586,6 +596,91 @@ function App() {
     return m ? { name: m.name, category: m.category, unit: m.unit } : null;
   };
 
+  const feeBedOptions = useMemo(() => {
+    return beds.filter((bed) => bed.status !== '空闲' && bed.adopter).map((bed) => ({ id: bed.id, name: bed.name, adopter: bed.adopter }));
+  }, [beds]);
+
+  const selectFeeBed = (bedId) => {
+    const bed = beds.find((b) => b.id === bedId);
+    if (bed) {
+      setFeeForm({ ...feeForm, bedId: bed.id, bedName: bed.name, adopter: bed.adopter });
+    } else {
+      setFeeForm({ ...feeForm, bedId: '', bedName: '', adopter: '' });
+    }
+  };
+
+  const addFee = (event) => {
+    event.preventDefault();
+    if (!feeForm.bedId || !feeForm.amount) return;
+    setFees([{ id: crypto.randomUUID(), ...feeForm, amount: Number(feeForm.amount) }, ...fees]);
+    setFeeForm({ bedId: '', bedName: '', adopter: '', startDate: iso(-30), endDate: iso(335), amount: '', paymentStatus: '待缴费', donationNote: '' });
+  };
+
+  const deleteFee = (id) => {
+    setFees(fees.filter((f) => f.id !== id));
+  };
+
+  const updateFeeStatus = (id, status) => {
+    setFees(fees.map((f) => f.id === id ? { ...f, paymentStatus: status } : f));
+  };
+
+  const feeStats = useMemo(() => {
+    const idleBedIds = new Set(beds.filter((b) => b.status === '空闲').map((b) => b.id));
+    const activeFees = fees.filter((f) => !idleBedIds.has(f.bedId));
+    const sevenDaysLater = new Date(today);
+    sevenDaysLater.setDate(today.getDate() + 7);
+    const expiring = activeFees.filter((f) => {
+      const end = new Date(f.endDate);
+      return end >= today && end <= sevenDaysLater;
+    });
+    const overdue = activeFees.filter((f) => f.paymentStatus === '欠费');
+    const pending = activeFees.filter((f) => f.paymentStatus === '待缴费');
+    const paid = activeFees.filter((f) => f.paymentStatus === '已缴费');
+    const totalAmount = activeFees.reduce((sum, f) => sum + f.amount, 0);
+    const paidAmount = paid.reduce((sum, f) => sum + f.amount, 0);
+    const overdueAmount = overdue.reduce((sum, f) => sum + f.amount, 0);
+    return { expiringCount: expiring.length, overdueCount: overdue.length, pendingCount: pending.length, paidCount: paid.length, totalAmount, paidAmount, overdueAmount, expiring };
+  }, [fees, beds]);
+
+  const filteredFees = useMemo(() => {
+    const idleBedIds = new Set(beds.filter((b) => b.status === '空闲').map((b) => b.id));
+    let result = fees.filter((f) => !idleBedIds.has(f.bedId));
+    if (feeQuery.trim()) {
+      const q = feeQuery.trim();
+      result = result.filter((f) => `${f.bedName}${f.adopter}${f.donationNote}`.includes(q));
+    }
+    if (feeStatusFilter) {
+      result = result.filter((f) => f.paymentStatus === feeStatusFilter);
+    }
+    return result.sort((a, b) => {
+      const statusOrder = { '欠费': 0, '待缴费': 1, '已缴费': 2 };
+      if (statusOrder[a.paymentStatus] !== statusOrder[b.paymentStatus]) {
+        return statusOrder[a.paymentStatus] - statusOrder[b.paymentStatus];
+      }
+      return new Date(a.endDate) - new Date(b.endDate);
+    });
+  }, [fees, beds, feeQuery, feeStatusFilter]);
+
+  const getFeeByBed = useMemo(() => {
+    const map = {};
+    const idleBedIds = new Set(beds.filter((b) => b.status === '空闲').map((b) => b.id));
+    fees.filter((f) => !idleBedIds.has(f.bedId)).forEach((f) => {
+      if (!map[f.bedId]) {
+        map[f.bedId] = [];
+      }
+      map[f.bedId].push(f);
+    });
+    return map;
+  }, [fees, beds]);
+
+  const getDaysUntilExpiry = (endDate) => {
+    const end = new Date(endDate);
+    const diff = Math.ceil((end - today) / 86400000);
+    if (diff < 0) return `已过期${Math.abs(diff)}天`;
+    if (diff === 0) return '今天到期';
+    return `还剩${diff}天`;
+  };
+
   return (
     <main>
       <header className="hero">
@@ -596,6 +691,8 @@ function App() {
         <div className="heroStats">
           <span><Leaf size={18} />{activeCount}块认养中</span>
           <span><Droplets size={18} />{weekWater.length}块本周浇水</span>
+          <span><Timer size={18} />{feeStats.expiringCount}笔即将到期</span>
+          <span><XCircle size={18} />{feeStats.overdueCount}笔欠费</span>
           <span><TriangleAlert size={18} />{warnings.length}条异常</span>
         </div>
       </header>
@@ -615,6 +712,9 @@ function App() {
         </button>
         <button className={activeTab === 'inventory' ? 'tab active' : 'tab'} onClick={() => setActiveTab('inventory')}>
           <Archive size={16} />物资库存
+        </button>
+        <button className={activeTab === 'fees' ? 'tab active' : 'tab'} onClick={() => setActiveTab('fees')}>
+          <Wallet size={16} />费用管理
         </button>
       </nav>
 
@@ -653,6 +753,27 @@ function App() {
               {warnings.length ? warnings.map((bed) => <p className="row alert" key={bed.id}><TriangleAlert size={16} />{bed.name}<span>{bed.warning}</span></p>) : <p className="muted">暂无异常</p>}
             </article>
           </section>
+
+          {feeStats.expiring.length > 0 && (
+            <section className="feeExpiryWarning">
+              <h2><Timer size={18} />认养即将到期</h2>
+              <div className="feeExpiryCards">
+                {feeStats.expiring.map((fee) => (
+                  <div className="feeExpiryCard" key={fee.id}>
+                    <div className="feeExpiryInfo">
+                      <strong>{fee.bedName}</strong>
+                      <span className="feeExpiryAdopter">{fee.adopter}</span>
+                    </div>
+                    <div className="feeExpiryMeta">
+                      <span className="feeExpiryCountdown">{getDaysUntilExpiry(fee.endDate)}</span>
+                      <span className="feeExpiryAmount">¥{fee.amount}</span>
+                      <span className={`feeStatusTag ${fee.paymentStatus}`}>{fee.paymentStatus}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="workspace">
             <form onSubmit={addBed} className="panel">
@@ -711,6 +832,19 @@ function App() {
                         <span className="lastContactText">{getLastContactByBed[bed.id].content.slice(0, 20)}...</span>
                         <span className="lastContactDate">{getLastContactByBed[bed.id].date}</span>
                       </p>
+                    )}
+                    {getFeeByBed[bed.id] && (
+                      <div className="bedFeeInfo">
+                        <span className="bedFeeLabel"><Wallet size={12} />费用：</span>
+                        <div className="bedFeeTags">
+                          {getFeeByBed[bed.id].map((f) => (
+                            <span key={f.id} className={`bedFeeTag ${f.paymentStatus}`}>
+                              ¥{f.amount} {f.paymentStatus}
+                              <small>{getDaysUntilExpiry(f.endDate)}</small>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </article>
                 ))}
@@ -1390,6 +1524,147 @@ function App() {
                         {t.note && <p className="transactionNote">📝 {t.note}</p>}
                       </div>
                     </article>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </section>
+        </>
+      )}
+
+      {activeTab === 'fees' && (
+        <>
+          <section className="dashboard">
+            <article>
+              <h2>即将到期</h2>
+              <p className="statNumber feeExpiringStat">{feeStats.expiringCount}<span>笔</span></p>
+            </article>
+            <article>
+              <h2>欠费</h2>
+              <p className="statNumber feeOverdueStat">{feeStats.overdueCount}<span>笔</span></p>
+            </article>
+            <article>
+              <h2>待缴费</h2>
+              <p className="statNumber">{feeStats.pendingCount}<span>笔</span></p>
+            </article>
+          </section>
+
+          <section className="workspace">
+            <form onSubmit={addFee} className="panel">
+              <h2><Plus size={18} />新增认养费用</h2>
+              <select value={feeForm.bedId} onChange={(e) => selectFeeBed(e.target.value)}>
+                <option value="">选择菜畦（仅已认养）</option>
+                {feeBedOptions.map((bed) => <option key={bed.id} value={bed.id}>{bed.name} - {bed.adopter}</option>)}
+              </select>
+              <input placeholder="认养人" value={feeForm.adopter} onChange={(e) => setFeeForm({ ...feeForm, adopter: e.target.value })} />
+              <div className="grid2">
+                <div>
+                  <label style={{ fontSize: '13px', color: '#71806a', marginBottom: '4px', display: 'block' }}>认养开始</label>
+                  <input type="date" value={feeForm.startDate} onChange={(e) => setFeeForm({ ...feeForm, startDate: e.target.value })} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '13px', color: '#71806a', marginBottom: '4px', display: 'block' }}>认养到期</label>
+                  <input type="date" value={feeForm.endDate} onChange={(e) => setFeeForm({ ...feeForm, endDate: e.target.value })} />
+                </div>
+              </div>
+              <div className="grid2">
+                <input type="number" min="0" placeholder="认养金额（元）" value={feeForm.amount} onChange={(e) => setFeeForm({ ...feeForm, amount: e.target.value })} />
+                <select value={feeForm.paymentStatus} onChange={(e) => setFeeForm({ ...feeForm, paymentStatus: e.target.value })}>
+                  <option>待缴费</option>
+                  <option>已缴费</option>
+                  <option>欠费</option>
+                </select>
+              </div>
+              <textarea placeholder="捐赠备注（如额外捐赠用途等）" rows="3" value={feeForm.donationNote} onChange={(e) => setFeeForm({ ...feeForm, donationNote: e.target.value })} />
+              <button type="submit">保存费用</button>
+            </form>
+
+            <div className="panel wide">
+              <div className="toolbar">
+                <h2>认养费用记录</h2>
+                <div className="toolbarActions">
+                  <select className="filterSelect" value={feeStatusFilter} onChange={(e) => setFeeStatusFilter(e.target.value)}>
+                    <option value="">全部状态</option>
+                    <option>已缴费</option>
+                    <option>待缴费</option>
+                    <option>欠费</option>
+                  </select>
+                  <label><Search size={16} /><input placeholder="搜索菜畦/认养人/备注" value={feeQuery} onChange={(e) => setFeeQuery(e.target.value)} /></label>
+                  {feeStatusFilter && (
+                    <button className="clearBtn" onClick={() => setFeeStatusFilter('')}>清除筛选</button>
+                  )}
+                </div>
+              </div>
+
+              {feeStats.overdueAmount > 0 && (
+                <div className="feeSummaryBar">
+                  <span><CircleDollarSign size={16} />应收总额：<strong>¥{feeStats.totalAmount}</strong></span>
+                  <span><CheckCircle2 size={16} />已收：<strong className="feePaidColor">¥{feeStats.paidAmount}</strong></span>
+                  <span><XCircle size={16} />欠费：<strong className="feeOverdueColor">¥{feeStats.overdueAmount}</strong></span>
+                </div>
+              )}
+
+              <div className="feeList">
+                {filteredFees.length === 0 ? (
+                  <div className="emptyState">
+                    <Wallet size={36} />
+                    <p>暂无费用记录{feeQuery || feeStatusFilter ? '（请调整筛选条件）' : ''}</p>
+                    <p className="muted">空闲菜畦不计入费用管理</p>
+                  </div>
+                ) : (
+                  filteredFees.map((fee) => {
+                    const daysLeft = getDaysUntilExpiry(fee.endDate);
+                    const isExpiring = daysLeft.includes('还剩') && parseInt(daysLeft.replace(/\D/g, '')) <= 7;
+                    const isOverdue = fee.paymentStatus === '欠费';
+                    const isExpired = daysLeft.includes('已过期');
+                    return (
+                      <article className={`feeCard ${isOverdue ? 'feeOverdue' : ''} ${isExpiring ? 'feeExpiring' : ''}`} key={fee.id}>
+                        <div className="feeHeader">
+                          <div className="feeInfo">
+                            <strong>{fee.bedName}</strong>
+                            <span className="feeAdopter"><Users size={14} />{fee.adopter}</span>
+                          </div>
+                          <div className="feeActions">
+                            <span className={`feeStatusTag ${fee.paymentStatus}`}>
+                              {fee.paymentStatus === '已缴费' && <CheckCircle2 size={14} />}
+                              {fee.paymentStatus === '待缴费' && <Timer size={14} />}
+                              {fee.paymentStatus === '欠费' && <XCircle size={14} />}
+                              {fee.paymentStatus}
+                            </span>
+                            {fee.paymentStatus !== '已缴费' && (
+                              <button type="button" className="miniBtn feeMarkPaidBtn" onClick={() => updateFeeStatus(fee.id, '已缴费')}>
+                                <CheckCircle2 size={12} />确认缴费
+                              </button>
+                            )}
+                            <button className="deleteBtn" onClick={() => deleteFee(fee.id)}>
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="feeBody">
+                          <div className="feeDetailRow">
+                            <div className="feeDetailItem">
+                              <span className="feeDetailLabel">认养周期</span>
+                              <span className="feeDetailValue">{fee.startDate} ~ {fee.endDate}</span>
+                            </div>
+                            <div className="feeDetailItem">
+                              <span className="feeDetailLabel">到期倒计时</span>
+                              <span className={`feeDetailValue ${(isExpiring || isExpired) ? 'feeExpiringText' : ''}`}>{daysLeft}</span>
+                            </div>
+                            <div className="feeDetailItem">
+                              <span className="feeDetailLabel">认养金额</span>
+                              <span className="feeDetailValue feeAmountValue">¥{fee.amount}</span>
+                            </div>
+                          </div>
+                          {fee.donationNote && (
+                            <div className="feeDonation">
+                              <Heart size={14} />
+                              <span>{fee.donationNote}</span>
+                            </div>
+                          )}
+                        </div>
+                      </article>
                     );
                   })
                 )}

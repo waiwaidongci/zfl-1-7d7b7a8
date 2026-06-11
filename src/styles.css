@@ -230,4 +230,58 @@ textarea { width: 100%; border: 1px solid #cdd8c3; border-radius: 8px; padding: 
 .quickInboundBtn:hover { background: #2f613a; }
 .warningStock { text-align: right; }
 
-@media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } .toolbarActions { width: 100%; flex-direction: column; } .filterSelect { width: 100%; } .contactHeader { flex-direction: column; align-items: start; gap: 8px; } .plantDates { justify-content: space-between; } .stockRow { grid-template-columns: repeat(2, 1fr); } .warningCards { grid-template-columns: 1fr; } .transactionMeta { flex-direction: column; align-items: start; } .transactionHeader { flex-direction: column; align-items: start; gap: 8px; } .inventoryActions { flex-wrap: wrap; } .editFormActions { flex-direction: column; } }
+.feeExpiryWarning { background: #fff; border: 1px solid #f0d6a0; border-radius: 8px; padding: 18px; margin-top: 16px; box-shadow: 0 8px 26px rgb(44 61 34 / .07); }
+.feeExpiryWarning h2 { color: #8a6a2c; }
+.feeExpiryCards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
+.feeExpiryCard { background: #fef8e8; border: 1px solid #f0d6a0; border-radius: 8px; padding: 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.feeExpiryInfo { display: flex; flex-direction: column; gap: 4px; }
+.feeExpiryInfo strong { font-size: 15px; color: #5a4a1e; }
+.feeExpiryAdopter { font-size: 13px; color: #8a7a4e; }
+.feeExpiryMeta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.feeExpiryCountdown { font-weight: 600; color: #8a6a2c; font-size: 14px; }
+.feeExpiryAmount { font-size: 18px; font-weight: 600; color: #5a4a1e; }
+
+.feeStatusTag { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; }
+.feeStatusTag.已缴费 { background: #e8f5e3; color: #3d7a2c; }
+.feeStatusTag.待缴费 { background: #f5ecd8; color: #8a6a2c; }
+.feeStatusTag.欠费 { background: #fbe3e3; color: #8a2c2c; }
+
+.feeExpiringStat { color: #8a6a2c !important; }
+.feeOverdueStat { color: #8a2c2c !important; }
+
+.feeSummaryBar { display: flex; gap: 20px; padding: 12px 16px; background: #f8faf5; border: 1px solid #dfe7d7; border-radius: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.feeSummaryBar span { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: #55624e; }
+.feePaidColor { color: #3d7a2c !important; }
+.feeOverdueColor { color: #8a2c2c !important; }
+
+.feeList { display: grid; gap: 12px; }
+.feeCard { background: #fbfcf8; border: 1px solid #dfe7d7; border-radius: 8px; padding: 16px; box-shadow: none; }
+.feeCard.feeOverdue { border-color: #e8c9bc; background: #fef8f5; }
+.feeCard.feeExpiring { border-color: #f0d6a0; background: #fefbf0; }
+.feeHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+.feeInfo { display: flex; flex-direction: column; gap: 2px; }
+.feeInfo strong { font-size: 16px; color: #243222; }
+.feeAdopter { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; color: #71806a; }
+.feeActions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.feeMarkPaidBtn { background: #e8f5e3; color: #3d7a2c; border-color: #b8d8a8; }
+.feeMarkPaidBtn:hover { background: #d5edcc; }
+.feeBody { display: flex; flex-direction: column; gap: 10px; }
+.feeDetailRow { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; }
+.feeDetailItem { display: flex; flex-direction: column; gap: 2px; }
+.feeDetailLabel { font-size: 12px; color: #87917f; }
+.feeDetailValue { font-size: 14px; color: #3c4d38; font-weight: 500; }
+.feeDetailValue.feeExpiringText { color: #8a6a2c; font-weight: 600; }
+.feeAmountValue { color: #2f613a; font-size: 16px; font-weight: 600; }
+.feeDonation { display: flex; align-items: flex-start; gap: 6px; color: #c0547a; font-size: 14px; padding-top: 8px; border-top: 1px dashed #dfe7d7; margin-top: 2px; }
+.feeDonation svg { flex-shrink: 0; margin-top: 2px; color: #e06090; }
+
+.bedFeeInfo { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #dfe7d7; }
+.bedFeeLabel { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #71806a; margin-right: 6px; }
+.bedFeeTags { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.bedFeeTag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 4px; font-size: 12px; }
+.bedFeeTag small { font-size: 11px; opacity: .7; }
+.bedFeeTag.已缴费 { background: #e8f5e3; color: #3d7a2c; }
+.bedFeeTag.待缴费 { background: #f5ecd8; color: #8a6a2c; }
+.bedFeeTag.欠费 { background: #fbe3e3; color: #8a2c2c; }
+
+@media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } .toolbarActions { width: 100%; flex-direction: column; } .filterSelect { width: 100%; } .contactHeader { flex-direction: column; align-items: start; gap: 8px; } .plantDates { justify-content: space-between; } .stockRow { grid-template-columns: repeat(2, 1fr); } .warningCards { grid-template-columns: 1fr; } .transactionMeta { flex-direction: column; align-items: start; } .transactionHeader { flex-direction: column; align-items: start; gap: 8px; } .inventoryActions { flex-wrap: wrap; } .editFormActions { flex-direction: column; } .feeDetailRow { grid-template-columns: 1fr; } .feeHeader { flex-direction: column; align-items: start; } .feeActions { flex-wrap: wrap; } .feeSummaryBar { flex-direction: column; gap: 8px; } .feeExpiryCards { grid-template-columns: 1fr; } .feeExpiryCard { flex-direction: column; align-items: start; } .feeExpiryMeta { flex-direction: row; align-items: center; } }
