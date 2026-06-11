@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { CalendarDays, Clock, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle } from 'lucide-react';
+import { CalendarDays, Clock, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History } from 'lucide-react';
 import './styles.css';
 
 const today = new Date();
@@ -46,6 +46,33 @@ const seedPlants = [
   { id: crypto.randomUUID(), bedId: seedBeds[1].id, bedName: 'B07番茄试验畦', crop: '樱桃番茄', sowDate: iso(-45), harvestDate: iso(20), growthStage: '结果期', note: '已开始挂果，注意追肥' }
 ];
 
+const seedMaterials = [
+  { id: crypto.randomUUID(), name: '薄荷种子', category: '种子', unit: '包', lowStockThreshold: 5, note: '进口品种' },
+  { id: crypto.randomUUID(), name: '樱桃番茄种子', category: '种子', unit: '包', lowStockThreshold: 3, note: '' },
+  { id: crypto.randomUUID(), name: '通用营养土', category: '营养土', unit: '袋', lowStockThreshold: 10, note: '40L装' },
+  { id: crypto.randomUUID(), name: '有机堆肥', category: '肥料', unit: '袋', lowStockThreshold: 5, note: '5kg装' },
+  { id: crypto.randomUUID(), name: '水溶肥', category: '肥料', unit: '瓶', lowStockThreshold: 3, note: '500ml' },
+  { id: crypto.randomUUID(), name: '修枝剪', category: '工具', unit: '把', lowStockThreshold: 2, note: '' },
+  { id: crypto.randomUUID(), name: '浇水壶', category: '工具', unit: '把', lowStockThreshold: 3, note: '5L容量' },
+  { id: crypto.randomUUID(), name: '绑藤绳', category: '耗材', unit: '卷', lowStockThreshold: 5, note: '50m/卷' },
+  { id: crypto.randomUUID(), name: '防虫网', category: '耗材', unit: '张', lowStockThreshold: 3, note: '2m×5m' }
+];
+
+const seedTransactions = [
+  { id: crypto.randomUUID(), materialId: seedMaterials[0].id, materialName: '薄荷种子', category: '种子', type: 'inbound', quantity: 20, unit: '包', date: iso(-15), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[1].id, materialName: '樱桃番茄种子', category: '种子', type: 'inbound', quantity: 10, unit: '包', date: iso(-12), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[2].id, materialName: '通用营养土', category: '营养土', type: 'inbound', quantity: 30, unit: '袋', date: iso(-10), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[2].id, materialName: '通用营养土', category: '营养土', type: 'consume', quantity: 5, unit: '袋', date: iso(-3), relatedType: 'task', relatedId: seedTasks[1].id, relatedName: 'C02补土并翻松', note: 'C02补土5袋' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[3].id, materialName: '有机堆肥', category: '肥料', type: 'inbound', quantity: 15, unit: '袋', date: iso(-8), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[4].id, materialName: '水溶肥', category: '肥料', type: 'inbound', quantity: 6, unit: '瓶', date: iso(-7), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[5].id, materialName: '修枝剪', category: '工具', type: 'inbound', quantity: 4, unit: '把', date: iso(-5), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[6].id, materialName: '浇水壶', category: '工具', type: 'inbound', quantity: 5, unit: '把', date: iso(-5), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[7].id, materialName: '绑藤绳', category: '耗材', type: 'inbound', quantity: 10, unit: '卷', date: iso(-6), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[8].id, materialName: '防虫网', category: '耗材', type: 'inbound', quantity: 8, unit: '张', date: iso(-6), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[1].id, materialName: '樱桃番茄种子', category: '种子', type: 'consume', quantity: 2, unit: '包', date: iso(-2), relatedType: 'task', relatedId: seedTasks[0].id, relatedName: '检查A区滴灌头', note: 'B07播种用' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[3].id, materialName: '有机堆肥', category: '肥料', type: 'consume', quantity: 3, unit: '袋', date: iso(-1), relatedType: 'harvest', relatedId: seedHarvests[1].id, relatedName: '樱桃番茄 2.1kg', note: '采摘后追肥' }
+];
+
 function useStoredState(key, initialValue) {
   const [value, setValue] = useState(() => {
     const raw = localStorage.getItem(key);
@@ -67,6 +94,8 @@ function App() {
   const [schedules, setSchedules] = useStoredState('zfl-1-schedules', seedSchedules);
   const [contacts, setContacts] = useStoredState('zfl-1-contacts', seedContacts);
   const [plants, setPlants] = useStoredState('zfl-1-plants', seedPlants);
+  const [materials, setMaterials] = useStoredState('zfl-1-materials', seedMaterials);
+  const [transactions, setTransactions] = useStoredState('zfl-1-transactions', seedTransactions);
   const [query, setQuery] = useState('');
   const [contactQuery, setContactQuery] = useState('');
   const [contactTypeFilter, setContactTypeFilter] = useState('');
@@ -78,6 +107,14 @@ function App() {
   const [scheduleForm, setScheduleForm] = useState({ date: iso(0), weekday: '', volunteer: '', phone: '', duty: '浇水', time: '09:00-11:00', note: '' });
   const [contactForm, setContactForm] = useState({ bedId: '', bedName: '', adopter: '', phone: '', type: '电话', date: iso(0), time: '09:00', content: '', note: '' });
   const [plantForm, setPlantForm] = useState({ bedId: '', bedName: '', crop: '', sowDate: iso(0), harvestDate: iso(30), growthStage: '播种期', note: '' });
+  const [materialForm, setMaterialForm] = useState({ name: '', category: '种子', unit: '', lowStockThreshold: 5, note: '' });
+  const [transactionForm, setTransactionForm] = useState({ materialId: '', type: 'inbound', quantity: '', date: iso(0), relatedType: '', relatedId: '', relatedName: '', note: '' });
+  const [inventoryQuery, setInventoryQuery] = useState('');
+  const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState('');
+  const [transactionTypeFilter, setTransactionTypeFilter] = useState('');
+  const [transactionMaterialFilter, setTransactionMaterialFilter] = useState('');
+  const [editingMaterialId, setEditingMaterialId] = useState('');
+  const [editingMaterialForm, setEditingMaterialForm] = useState({ name: '', category: '种子', unit: '', lowStockThreshold: 5, note: '' });
 
   const weekWater = beds.filter((bed) => {
     const days = (new Date(bed.nextWater) - today) / 86400000;
@@ -306,6 +343,235 @@ function App() {
     return `还有${diff}天`;
   };
 
+  const stockByMaterial = useMemo(() => {
+    const map = {};
+    materials.forEach((m) => {
+      map[m.id] = { ...m, stock: 0, inboundTotal: 0, consumeTotal: 0 };
+    });
+    transactions.forEach((t) => {
+      if (!map[t.materialId]) return;
+      if (t.type === 'inbound') {
+        map[t.materialId].stock += t.quantity;
+        map[t.materialId].inboundTotal += t.quantity;
+      } else {
+        map[t.materialId].stock -= t.quantity;
+        map[t.materialId].consumeTotal += t.quantity;
+      }
+    });
+    return Object.values(map);
+  }, [materials, transactions]);
+
+  const lowStockItems = useMemo(() => {
+    return stockByMaterial.filter((m) => m.stock <= m.lowStockThreshold);
+  }, [stockByMaterial]);
+
+  const inventoryStats = useMemo(() => {
+    const categories = new Set(materials.map((m) => m.category));
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const monthlyInbound = transactions.filter(
+      (t) => t.type === 'inbound' && new Date(t.date) >= monthStart
+    ).length;
+    const monthlyConsume = transactions.filter(
+      (t) => t.type === 'consume' && new Date(t.date) >= monthStart
+    ).length;
+    return {
+      categoryCount: categories.size,
+      materialCount: materials.length,
+      lowStockCount: lowStockItems.length,
+      monthlyInbound,
+      monthlyConsume
+    };
+  }, [materials, transactions, lowStockItems]);
+
+  const filteredStockByMaterial = useMemo(() => {
+    let result = [...stockByMaterial];
+    if (inventoryQuery.trim()) {
+      const q = inventoryQuery.trim();
+      result = result.filter((m) => `${m.name}${m.category}${m.note}`.includes(q));
+    }
+    if (inventoryCategoryFilter) {
+      result = result.filter((m) => m.category === inventoryCategoryFilter);
+    }
+    return result.sort((a, b) => {
+      const aLow = a.stock <= a.lowStockThreshold ? 0 : 1;
+      const bLow = b.stock <= b.lowStockThreshold ? 0 : 1;
+      if (aLow !== bLow) return aLow - bLow;
+      return a.category.localeCompare(b.category);
+    });
+  }, [stockByMaterial, inventoryQuery, inventoryCategoryFilter]);
+
+  const filteredTransactions = useMemo(() => {
+    let result = [...transactions];
+    if (transactionTypeFilter) {
+      result = result.filter((t) => t.type === transactionTypeFilter);
+    }
+    if (transactionMaterialFilter) {
+      result = result.filter((t) => t.materialId === transactionMaterialFilter);
+    }
+    return result.sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [transactions, transactionTypeFilter, transactionMaterialFilter]);
+
+  const transactionRelatedOptions = useMemo(() => {
+    const taskOpts = tasks.map((t) => ({ id: t.id, name: t.title, type: 'task' }));
+    const harvestOpts = harvests.map((h) => ({ id: h.id, name: `${h.crop} ${h.weight}`, type: 'harvest' }));
+    return { task: taskOpts, harvest: harvestOpts };
+  }, [tasks, harvests]);
+
+  const consumptionsByTaskId = useMemo(() => {
+    const map = {};
+    transactions.filter((t) => t.type === 'consume' && t.relatedType === 'task').forEach((t) => {
+      if (!map[t.relatedId]) map[t.relatedId] = [];
+      map[t.relatedId].push(t);
+    });
+    return map;
+  }, [transactions]);
+
+  const consumptionsByHarvestId = useMemo(() => {
+    const map = {};
+    transactions.filter((t) => t.type === 'consume' && t.relatedType === 'harvest').forEach((t) => {
+      if (!map[t.relatedId]) map[t.relatedId] = [];
+      map[t.relatedId].push(t);
+    });
+    return map;
+  }, [transactions]);
+
+  const consumptionsByBedName = useMemo(() => {
+    const map = {};
+    const taskBedMap = {};
+    tasks.forEach((t) => {
+      const matchedBed = beds.find((b) => t.title.includes(b.name.slice(0, 3)));
+      if (matchedBed) taskBedMap[t.id] = matchedBed.name;
+    });
+    transactions.filter((t) => t.type === 'consume').forEach((t) => {
+      let bedName = '';
+      if (t.relatedType === 'harvest') {
+        const h = harvests.find((h) => h.id === t.relatedId);
+        if (h) bedName = h.bed;
+      } else if (t.relatedType === 'task') {
+        bedName = taskBedMap[t.relatedId] || '';
+      }
+      if (bedName) {
+        if (!map[bedName]) map[bedName] = [];
+        map[bedName].push(t);
+      }
+    });
+    return map;
+  }, [transactions, tasks, harvests, beds]);
+
+  const addMaterial = (event) => {
+    event.preventDefault();
+    if (!materialForm.name.trim() || !materialForm.unit.trim()) return;
+    setMaterials([{ id: crypto.randomUUID(), ...materialForm }, ...materials]);
+    setMaterialForm({ name: '', category: '种子', unit: '', lowStockThreshold: 5, note: '' });
+  };
+
+  const deleteMaterial = (id) => {
+    setMaterials(materials.filter((m) => m.id !== id));
+    setTransactions(transactions.filter((t) => t.materialId !== id));
+  };
+
+  const addTransaction = (event) => {
+    event.preventDefault();
+    if (!transactionForm.materialId || !transactionForm.quantity) return;
+    const material = materials.find((m) => m.id === transactionForm.materialId);
+    if (!material) return;
+    const entry = {
+      id: crypto.randomUUID(),
+      materialId: transactionForm.materialId,
+      materialName: material.name,
+      category: material.category,
+      type: transactionForm.type,
+      quantity: Number(transactionForm.quantity),
+      unit: material.unit,
+      date: transactionForm.date,
+      relatedType: transactionForm.relatedType,
+      relatedId: transactionForm.relatedId,
+      relatedName: transactionForm.relatedName,
+      note: transactionForm.note
+    };
+    setTransactions([entry, ...transactions]);
+    setTransactionForm({ materialId: '', type: 'inbound', quantity: '', date: iso(0), relatedType: '', relatedId: '', relatedName: '', note: '' });
+  };
+
+  const deleteTransaction = (id) => {
+    setTransactions(transactions.filter((t) => t.id !== id));
+  };
+
+  const selectTransactionRelated = (type, id) => {
+    if (!type || !id) {
+      setTransactionForm({ ...transactionForm, relatedType: '', relatedId: '', relatedName: '' });
+      return;
+    }
+    const opts = transactionRelatedOptions[type] || [];
+    const found = opts.find((o) => o.id === id);
+    if (found) {
+      setTransactionForm({ ...transactionForm, relatedType: type, relatedId: found.id, relatedName: found.name });
+    }
+  };
+
+  const startEditMaterial = (id) => {
+    const m = materials.find((x) => x.id === id);
+    if (m) {
+      setEditingMaterialId(id);
+      setEditingMaterialForm({ name: m.name, category: m.category, unit: m.unit, lowStockThreshold: m.lowStockThreshold, note: m.note });
+    }
+  };
+
+  const saveEditMaterial = (event) => {
+    event.preventDefault();
+    if (!editingMaterialForm.name.trim() || !editingMaterialForm.unit.trim()) return;
+    setMaterials(materials.map((m) => m.id === editingMaterialId ? { ...m, ...editingMaterialForm } : m));
+    setEditingMaterialId('');
+  };
+
+  const cancelEditMaterial = () => {
+    setEditingMaterialId('');
+  };
+
+  const quickInbound = (materialId) => {
+    const m = materials.find((x) => x.id === materialId);
+    if (!m) return;
+    setTransactionForm({
+      materialId: m.id,
+      type: 'inbound',
+      quantity: String(Math.max(m.lowStockThreshold, 5)),
+      date: iso(0),
+      relatedType: '',
+      relatedId: '',
+      relatedName: '',
+      note: '快速补货'
+    });
+    setActiveTab('inventory');
+  };
+
+  const quickConsumeForTask = (taskId, taskTitle) => {
+    setTransactionForm({
+      materialId: '',
+      type: 'consume',
+      quantity: '',
+      date: iso(0),
+      relatedType: 'task',
+      relatedId: taskId,
+      relatedName: taskTitle,
+      note: ''
+    });
+    setActiveTab('inventory');
+  };
+
+  const quickConsumeForHarvest = (harvestId, harvestName) => {
+    setTransactionForm({
+      materialId: '',
+      type: 'consume',
+      quantity: '',
+      date: iso(0),
+      relatedType: 'harvest',
+      relatedId: harvestId,
+      relatedName: harvestName,
+      note: ''
+    });
+    setActiveTab('inventory');
+  };
+
   return (
     <main>
       <header className="hero">
@@ -333,6 +599,9 @@ function App() {
         <button className={activeTab === 'schedules' ? 'tab active' : 'tab'} onClick={() => setActiveTab('schedules')}>
           <Users size={16} />志愿者排班
         </button>
+        <button className={activeTab === 'inventory' ? 'tab active' : 'tab'} onClick={() => setActiveTab('inventory')}>
+          <Archive size={16} />物资库存
+        </button>
       </nav>
 
       {activeTab === 'dashboard' && (
@@ -344,7 +613,23 @@ function App() {
             </article>
             <article>
               <h2>最近采摘</h2>
-              {harvests.slice(0, 4).map((item) => <p className="row" key={item.id}><Wheat size={16} />{item.crop}{item.weight}<span>{item.date}</span></p>)}
+              {harvests.slice(0, 4).map((item) => (
+                <div key={item.id} className="harvestMiniCard">
+                  <p className="row" style={{ margin: 0 }}><Wheat size={16} />{item.crop}{item.weight}<span>{item.date}</span></p>
+                  {consumptionsByHarvestId[item.id] && consumptionsByHarvestId[item.id].length > 0 && (
+                    <div className="taskConsumptions">
+                      {consumptionsByHarvestId[item.id].map((c) => (
+                        <span key={c.id} className="miniConsumeTag">
+                          <Package size={12} />{c.materialName} -{c.quantity}{c.unit}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <button type="button" className="miniBtn" onClick={() => quickConsumeForHarvest(item.id, `${item.crop} ${item.weight}`)}>
+                    <ArrowUpCircle size={12} />登记追肥/耗材
+                  </button>
+                </div>
+              ))}
             </article>
             <article>
               <h2>异常提醒</h2>
@@ -384,6 +669,21 @@ function App() {
                     <span>{bed.crop}</span>
                     <p>{bed.adopter || '待认养'} · {bed.area} · {bed.status}</p>
                     <p><CalendarDays size={15} />下次浇水 {bed.nextWater}</p>
+                    {consumptionsByBedName[bed.name] && consumptionsByBedName[bed.name].length > 0 && (
+                      <div className="bedMaterials">
+                        <span className="bedMaterialsLabel"><Package size={12} />近期用资：</span>
+                        <div className="bedMaterialTags">
+                          {consumptionsByBedName[bed.name].slice(0, 3).map((c) => (
+                            <span key={c.id} className="miniConsumeTag">
+                              {c.materialName} -{c.quantity}{c.unit}
+                            </span>
+                          ))}
+                          {consumptionsByBedName[bed.name].length > 3 && (
+                            <span className="miniConsumeTag more">+{consumptionsByBedName[bed.name].length - 3}</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     {getLastContactByBed[bed.id] && (
                       <p className="lastContact">
                         <MessageCircle size={15} />
@@ -414,11 +714,25 @@ function App() {
             <div className="panel">
               <h2>待处理事项</h2>
               {tasks.map((task) => (
-                <label className="task" key={task.id}>
-                  <input type="checkbox" checked={task.done} onChange={() => toggleTask(task.id)} />
-                  <span className={task.done ? 'done' : ''}>{task.title}</span>
-                  <small>{task.owner} · {task.due}</small>
-                </label>
+                <div className="taskCard" key={task.id}>
+                  <label className="task">
+                    <input type="checkbox" checked={task.done} onChange={() => toggleTask(task.id)} />
+                    <span className={task.done ? 'done' : ''}>{task.title}</span>
+                    <small>{task.owner} · {task.due}</small>
+                  </label>
+                  {consumptionsByTaskId[task.id] && consumptionsByTaskId[task.id].length > 0 && (
+                    <div className="taskConsumptions">
+                      {consumptionsByTaskId[task.id].map((c) => (
+                        <span key={c.id} className="miniConsumeTag">
+                          <Package size={12} />{c.materialName} -{c.quantity}{c.unit}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <button type="button" className="miniBtn" onClick={() => quickConsumeForTask(task.id, task.title)}>
+                    <ArrowUpCircle size={12} />登记消耗
+                  </button>
+                </div>
               ))}
             </div>
           </section>
@@ -778,6 +1092,274 @@ function App() {
                         <p className="row"><Users size={15} />{schedule.volunteer}<span>{schedule.phone}</span></p>
                         <p className="row"><Clock size={15} />{schedule.time}</p>
                         {schedule.note && <p className="scheduleNote">📝 {schedule.note}</p>}
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
+            </div>
+          </section>
+        </>
+      )}
+
+      {activeTab === 'inventory' && (
+        <>
+          <section className="dashboard">
+            <article>
+              <h2>物资种类</h2>
+              <p className="statNumber">{inventoryStats.materialCount}<span>项</span></p>
+            </article>
+            <article>
+              <h2>低库存预警</h2>
+              <p className="statNumber invAlert">{inventoryStats.lowStockCount}<span>项</span></p>
+            </article>
+            <article>
+              <h2>本月入库</h2>
+              <p className="statNumber">{inventoryStats.monthlyInbound}<span>次</span></p>
+            </article>
+          </section>
+
+          {lowStockItems.length > 0 && (
+            <section className="inventoryWarning">
+              <h2><TriangleAlert size={18} />低库存预警</h2>
+              <div className="warningCards">
+                {lowStockItems.map((item) => (
+                  <div className="warningCard" key={item.id}>
+                    <div className="warningInfo">
+                      <strong>{item.name}</strong>
+                      <span className={`categoryTag ${item.category}`}>{item.category}</span>
+                    </div>
+                    <div className="warningStock">
+                      <span className="warningCurrent">{item.stock} {item.unit}</span>
+                      <span className="warningThreshold">预警线：{item.lowStockThreshold} {item.unit}</span>
+                      <button type="button" className="quickInboundBtn" onClick={() => quickInbound(item.id)}>
+                        <ArrowDownCircle size={12} />快速补货
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="workspace">
+            <div className="panel inventoryForms">
+              <form onSubmit={addMaterial} className="inventorySubForm">
+                <h2><Plus size={18} />新增物资</h2>
+                <input placeholder="物资名称" value={materialForm.name} onChange={(e) => setMaterialForm({ ...materialForm, name: e.target.value })} />
+                <select value={materialForm.category} onChange={(e) => setMaterialForm({ ...materialForm, category: e.target.value })}>
+                  <option>种子</option>
+                  <option>营养土</option>
+                  <option>肥料</option>
+                  <option>工具</option>
+                  <option>耗材</option>
+                </select>
+                <div className="grid2">
+                  <input placeholder="单位（包/袋/瓶）" value={materialForm.unit} onChange={(e) => setMaterialForm({ ...materialForm, unit: e.target.value })} />
+                  <input type="number" min="0" placeholder="低库存预警线" value={materialForm.lowStockThreshold} onChange={(e) => setMaterialForm({ ...materialForm, lowStockThreshold: Number(e.target.value) })} />
+                </div>
+                <input placeholder="备注" value={materialForm.note} onChange={(e) => setMaterialForm({ ...materialForm, note: e.target.value })} />
+                <button type="submit">保存物资</button>
+              </form>
+
+              <form onSubmit={addTransaction} className="inventorySubForm">
+                <h2><Plus size={18} />新增流水</h2>
+                <div className="transactionTypeToggle">
+                  <button type="button" className={transactionForm.type === 'inbound' ? 'toggleBtn active inbound' : 'toggleBtn'} onClick={() => setTransactionForm({ ...transactionForm, type: 'inbound', relatedType: '', relatedId: '', relatedName: '' })}>
+                    <ArrowDownCircle size={16} />入库
+                  </button>
+                  <button type="button" className={transactionForm.type === 'consume' ? 'toggleBtn active consume' : 'toggleBtn'} onClick={() => setTransactionForm({ ...transactionForm, type: 'consume' })}>
+                    <ArrowUpCircle size={16} />消耗
+                  </button>
+                </div>
+                <select value={transactionForm.materialId} onChange={(e) => setTransactionForm({ ...transactionForm, materialId: e.target.value })}>
+                  <option value="">选择物资</option>
+                  {materials.map((m) => <option key={m.id} value={m.id}>{m.name}（{m.category}）</option>)}
+                </select>
+                <div className="grid2">
+                  <input type="number" min="1" placeholder="数量" value={transactionForm.quantity} onChange={(e) => setTransactionForm({ ...transactionForm, quantity: e.target.value })} />
+                  <input type="date" value={transactionForm.date} onChange={(e) => setTransactionForm({ ...transactionForm, date: e.target.value })} />
+                </div>
+                {transactionForm.type === 'consume' && (
+                  <>
+                    <select value={transactionForm.relatedType} onChange={(e) => {
+                      const type = e.target.value;
+                      setTransactionForm({ ...transactionForm, relatedType: type, relatedId: '', relatedName: '' });
+                    }}>
+                      <option value="">关联类型（可选）</option>
+                      <option value="task">维护任务</option>
+                      <option value="harvest">采摘记录</option>
+                    </select>
+                    {transactionForm.relatedType && (
+                      <select value={transactionForm.relatedId} onChange={(e) => selectTransactionRelated(transactionForm.relatedType, e.target.value)}>
+                        <option value="">选择{transactionForm.relatedType === 'task' ? '维护任务' : '采摘记录'}</option>
+                        {(transactionRelatedOptions[transactionForm.relatedType] || []).map((opt) => (
+                          <option key={opt.id} value={opt.id}>{opt.name}</option>
+                        ))}
+                      </select>
+                    )}
+                  </>
+                )}
+                <input placeholder="备注" value={transactionForm.note} onChange={(e) => setTransactionForm({ ...transactionForm, note: e.target.value })} />
+                <button type="submit">保存流水</button>
+              </form>
+            </div>
+
+            <div className="panel wide">
+              <div className="toolbar">
+                <h2>物资库存</h2>
+                <div className="toolbarActions">
+                  <select className="filterSelect" value={inventoryCategoryFilter} onChange={(e) => setInventoryCategoryFilter(e.target.value)}>
+                    <option value="">全部类别</option>
+                    <option>种子</option>
+                    <option>营养土</option>
+                    <option>肥料</option>
+                    <option>工具</option>
+                    <option>耗材</option>
+                  </select>
+                  <label><Search size={16} /><input placeholder="搜索物资名称/备注" value={inventoryQuery} onChange={(e) => setInventoryQuery(e.target.value)} /></label>
+                  {inventoryCategoryFilter && (
+                    <button className="clearBtn" onClick={() => setInventoryCategoryFilter('')}>清除筛选</button>
+                  )}
+                </div>
+              </div>
+              <div className="inventoryList">
+                {filteredStockByMaterial.length === 0 ? (
+                  <div className="emptyState">
+                    <Archive size={36} />
+                    <p>暂无物资{inventoryQuery || inventoryCategoryFilter ? '（请调整筛选条件）' : ''}</p>
+                    <p className="muted">请先添加物资目录</p>
+                  </div>
+                ) : (
+                  filteredStockByMaterial.map((item) => (
+                    <article className={`inventoryCard ${item.stock <= item.lowStockThreshold ? 'lowStock' : ''}`} key={item.id}>
+                      <div className="inventoryHeader">
+                        <div className="inventoryInfo">
+                          <strong>{item.name}</strong>
+                          <span className={`categoryTag ${item.category}`}>{item.category}</span>
+                        </div>
+                        <div className="inventoryActions">
+                          <button type="button" className="miniBtn" onClick={() => quickInbound(item.id)} title="快速入库">
+                            <ArrowDownCircle size={12} />入库
+                          </button>
+                          <button type="button" className="editBtn" onClick={() => startEditMaterial(item.id)} title="编辑物资">
+                            编辑
+                          </button>
+                          <button className="deleteBtn" onClick={() => deleteMaterial(item.id)}>
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                      {editingMaterialId === item.id ? (
+                        <form onSubmit={saveEditMaterial} className="editMaterialForm">
+                          <input placeholder="物资名称" value={editingMaterialForm.name} onChange={(e) => setEditingMaterialForm({ ...editingMaterialForm, name: e.target.value })} />
+                          <select value={editingMaterialForm.category} onChange={(e) => setEditingMaterialForm({ ...editingMaterialForm, category: e.target.value })}>
+                            <option>种子</option>
+                            <option>营养土</option>
+                            <option>肥料</option>
+                            <option>工具</option>
+                            <option>耗材</option>
+                          </select>
+                          <div className="grid2">
+                            <input placeholder="单位" value={editingMaterialForm.unit} onChange={(e) => setEditingMaterialForm({ ...editingMaterialForm, unit: e.target.value })} />
+                            <input type="number" min="0" placeholder="预警线" value={editingMaterialForm.lowStockThreshold} onChange={(e) => setEditingMaterialForm({ ...editingMaterialForm, lowStockThreshold: Number(e.target.value) })} />
+                          </div>
+                          <input placeholder="备注" value={editingMaterialForm.note} onChange={(e) => setEditingMaterialForm({ ...editingMaterialForm, note: e.target.value })} />
+                          <div className="editFormActions">
+                            <button type="submit">保存修改</button>
+                            <button type="button" className="clearBtn" onClick={cancelEditMaterial}>取消</button>
+                          </div>
+                        </form>
+                      ) : (
+                        <div className="inventoryBody">
+                          <div className="stockRow">
+                            <div className="stockItem">
+                              <span className="stockLabel">当前库存</span>
+                              <span className={`stockValue ${item.stock <= item.lowStockThreshold ? 'lowStockValue' : ''}`}>{item.stock} <small>{item.unit}</small></span>
+                            </div>
+                            <div className="stockItem">
+                              <span className="stockLabel">预警线</span>
+                              <span className="stockValue threshold">{item.lowStockThreshold} <small>{item.unit}</small></span>
+                            </div>
+                            <div className="stockItem">
+                              <span className="stockLabel">累计入库</span>
+                              <span className="stockValue inbound">{item.inboundTotal} <small>{item.unit}</small></span>
+                            </div>
+                            <div className="stockItem">
+                              <span className="stockLabel">累计消耗</span>
+                              <span className="stockValue consume">{item.consumeTotal} <small>{item.unit}</small></span>
+                            </div>
+                          </div>
+                          <div className="stockBarWrap">
+                            <div className="stockBar" style={{ width: `${Math.min(100, (item.stock / Math.max(item.lowStockThreshold * 2, 1)) * 100)}%` }} />
+                          </div>
+                          {item.note && <p className="inventoryNote">📝 {item.note}</p>}
+                        </div>
+                      )}
+                    </article>
+                  ))
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="workspace bottom">
+            <div className="panel wide">
+              <div className="toolbar">
+                <h2><History size={18} />流水记录</h2>
+                <div className="toolbarActions">
+                  <select className="filterSelect" value={transactionTypeFilter} onChange={(e) => setTransactionTypeFilter(e.target.value)}>
+                    <option value="">全部类型</option>
+                    <option value="inbound">入库</option>
+                    <option value="consume">消耗</option>
+                  </select>
+                  <select className="filterSelect" value={transactionMaterialFilter} onChange={(e) => setTransactionMaterialFilter(e.target.value)}>
+                    <option value="">全部物资</option>
+                    {materials.map((m) => <option key={m.id} value={m.id}>{m.name}（{m.category}）</option>)}
+                  </select>
+                  {(transactionTypeFilter || transactionMaterialFilter) && (
+                    <button className="clearBtn" onClick={() => { setTransactionTypeFilter(''); setTransactionMaterialFilter(''); }}>清除筛选</button>
+                  )}
+                </div>
+              </div>
+              <div className="transactionList">
+                {filteredTransactions.length === 0 ? (
+                  <div className="emptyState">
+                    <History size={36} />
+                    <p>暂无流水记录{transactionTypeFilter ? '（请调整筛选条件）' : ''}</p>
+                    <p className="muted">入库或消耗后将在此展示</p>
+                  </div>
+                ) : (
+                  filteredTransactions.map((t) => (
+                    <article className="transactionCard" key={t.id}>
+                      <div className="transactionHeader">
+                        <div className="transactionMeta">
+                          <span className={`transactionTypeTag ${t.type}`}>
+                            {t.type === 'inbound' ? <ArrowDownCircle size={14} /> : <ArrowUpCircle size={14} />}
+                            {t.type === 'inbound' ? '入库' : '消耗'}
+                          </span>
+                          <strong className="transactionMaterial">{t.materialName}</strong>
+                          <span className={`categoryTag ${t.category}`}>{t.category}</span>
+                        </div>
+                        <div className="transactionActions">
+                          <span className="transactionDate">{t.date}</span>
+                          <button className="deleteBtn" onClick={() => deleteTransaction(t.id)}>
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="transactionBody">
+                        <div className="transactionDetail">
+                          <span className={`transactionQty ${t.type}`}>
+                            {t.type === 'inbound' ? '+' : '-'}{t.quantity} {t.unit}
+                          </span>
+                          {t.relatedType && (
+                            <span className="transactionRelated">
+                              {t.relatedType === 'task' ? '🔧' : '🌾'}{t.relatedName}
+                            </span>
+                          )}
+                        </div>
+                        {t.note && <p className="transactionNote">📝 {t.note}</p>}
                       </div>
                     </article>
                   ))

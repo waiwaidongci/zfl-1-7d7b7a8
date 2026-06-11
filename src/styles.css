@@ -132,4 +132,102 @@ textarea { width: 100%; border: 1px solid #cdd8c3; border-radius: 8px; padding: 
 .idleBedCard { border: 1px dashed #cdd8c3; background: #f8faf5; }
 .idleBedCard .listButton { margin-top: 12px; }
 
-@media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } .toolbarActions { width: 100%; flex-direction: column; } .filterSelect { width: 100%; } .contactHeader { flex-direction: column; align-items: start; gap: 8px; } .plantDates { justify-content: space-between; } }
+.invAlert { color: #8b3f23 !important; }
+
+.inventoryWarning { background: #fff; border: 1px solid #e8c9bc; border-radius: 8px; padding: 18px; margin-top: 16px; box-shadow: 0 8px 26px rgb(44 61 34 / .07); }
+.inventoryWarning h2 { color: #8b3f23; }
+.warningCards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
+.warningCard { background: #fbeae2; border: 1px solid #e8c9bc; border-radius: 8px; padding: 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.warningInfo { display: flex; flex-direction: column; gap: 4px; }
+.warningInfo strong { font-size: 15px; color: #6b2f15; }
+.warningStock { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.warningCurrent { font-size: 20px; font-weight: 600; color: #8b3f23; }
+.warningThreshold { font-size: 12px; color: #b06a4a; }
+
+.categoryTag { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; }
+.categoryTag.种子 { background: #e3f0fb; color: #2c5f8a; }
+.categoryTag.营养土 { background: #f5ecd8; color: #8a6a2c; }
+.categoryTag.肥料 { background: #e8f5e3; color: #3d7a2c; }
+.categoryTag.工具 { background: #f0e3f5; color: #6a2c8a; }
+.categoryTag.耗材 { background: #fbe3e3; color: #8a2c2c; }
+
+.inventoryForms { display: flex; flex-direction: column; gap: 24px; }
+.inventorySubForm { display: flex; flex-direction: column; gap: 10px; }
+.inventorySubForm + .inventorySubForm { padding-top: 20px; border-top: 1px dashed #dfe7d7; }
+
+.transactionTypeToggle { display: flex; gap: 8px; }
+.toggleBtn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; background: #fff; border: 1px solid #cdd8c3; color: #55624e; border-radius: 8px; font-size: 14px; }
+.toggleBtn.active.inbound { background: #e8f5e3; border-color: #3d7a2c; color: #2f613a; }
+.toggleBtn.active.consume { background: #fbe3e3; border-color: #8a2c2c; color: #8a2c2c; }
+
+.inventoryList { display: grid; gap: 12px; }
+.inventoryCard { background: #fbfcf8; border: 1px solid #dfe7d7; border-radius: 8px; padding: 16px; box-shadow: none; }
+.inventoryCard.lowStock { border-color: #e8c9bc; background: #fef8f5; }
+.inventoryHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.inventoryInfo { display: flex; align-items: center; gap: 10px; }
+.inventoryInfo strong { font-size: 16px; color: #243222; }
+.inventoryBody { display: flex; flex-direction: column; gap: 10px; }
+.stockRow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.stockItem { display: flex; flex-direction: column; gap: 2px; }
+.stockLabel { font-size: 12px; color: #87917f; }
+.stockValue { font-size: 18px; font-weight: 600; color: #2f613a; }
+.stockValue small { font-size: 13px; font-weight: normal; color: #71806a; }
+.stockValue.lowStockValue { color: #8b3f23; }
+.stockValue.threshold { color: #b06a4a; font-size: 15px; }
+.stockValue.inbound { color: #3d7a2c; font-size: 15px; }
+.stockValue.consume { color: #8a5a2c; font-size: 15px; }
+.stockBarWrap { height: 6px; background: #eef2eb; border-radius: 3px; overflow: hidden; }
+.stockBar { height: 100%; background: linear-gradient(90deg, #3d7a2c, #6c8b42); border-radius: 3px; transition: width .3s; }
+.inventoryCard.lowStock .stockBar { background: linear-gradient(90deg, #8b3f23, #c9764d); }
+.inventoryNote { color: #6b7763; font-size: 14px; margin: 4px 0 0; padding-top: 8px; border-top: 1px dashed #dfe7d7; }
+
+.transactionList { display: grid; gap: 10px; }
+.transactionCard { background: #fbfcf8; border: 1px solid #dfe7d7; border-radius: 8px; padding: 14px 16px; box-shadow: none; }
+.transactionHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.transactionMeta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.transactionMaterial { font-size: 15px; color: #243222; }
+.transactionActions { display: flex; align-items: center; gap: 10px; }
+.transactionDate { color: #71806a; font-size: 13px; }
+.transactionBody { display: flex; flex-direction: column; gap: 6px; }
+.transactionDetail { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.transactionQty { font-weight: 600; font-size: 16px; }
+.transactionQty.inbound { color: #3d7a2c; }
+.transactionQty.consume { color: #8b3f23; }
+.transactionRelated { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 6px; font-size: 13px; background: #eef5e9; color: #5f7648; }
+.transactionNote { color: #6b7763; font-size: 14px; margin: 2px 0 0; }
+
+.transactionTypeTag { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; }
+.transactionTypeTag.inbound { background: #e8f5e3; color: #3d7a2c; }
+.transactionTypeTag.consume { background: #fbe3e3; color: #8a2c2c; }
+
+.taskCard { border-bottom: 1px solid #eef2eb; padding: 10px 0; }
+.taskCard:last-child { border-bottom: 0; }
+.taskCard .task { border-bottom: 0 !important; padding: 2px 0 0 !important; }
+.taskConsumptions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; padding-left: 30px; }
+.miniConsumeTag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 4px; font-size: 12px; background: #f5ecd8; color: #8a6a2c; }
+.miniConsumeTag.more { background: #eef5e9; color: #5f7648; }
+.miniBtn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: #eef5e9; color: #2f613a; border: 1px solid #cdd8c3; border-radius: 6px; font-size: 12px; margin-left: 30px; }
+.miniBtn:hover { background: #dde9d3; }
+
+.harvestMiniCard { padding: 4px 0; border-bottom: 1px dashed #eef2eb; }
+.harvestMiniCard:last-child { border-bottom: 0; }
+.harvestMiniCard .miniBtn { margin: 6px 0 0; }
+.harvestMiniCard .taskConsumptions { padding-left: 0; margin: 6px 0; }
+
+.bedMaterials { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #dfe7d7; }
+.bedMaterialsLabel { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #71806a; margin-right: 6px; }
+.bedMaterialTags { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+
+.inventoryActions { display: flex; gap: 8px; align-items: center; }
+.editBtn { background: #e3f0fb; color: #2c5f8a; border: 1px solid #b8d4ec; padding: 6px 12px; border-radius: 6px; font-size: 12px; width: auto; }
+.editBtn:hover { background: #cce3f5; }
+
+.editMaterialForm { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; padding: 12px; background: #f8faf5; border-radius: 8px; border: 1px dashed #dfe7d7; }
+.editFormActions { display: flex; gap: 10px; }
+.editFormActions button { flex: 1; }
+
+.quickInboundBtn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; margin-top: 6px; background: #3d7a2c; color: #fff; border: 0; border-radius: 4px; font-size: 12px; cursor: pointer; }
+.quickInboundBtn:hover { background: #2f613a; }
+.warningStock { text-align: right; }
+
+@media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } .toolbarActions { width: 100%; flex-direction: column; } .filterSelect { width: 100%; } .contactHeader { flex-direction: column; align-items: start; gap: 8px; } .plantDates { justify-content: space-between; } .stockRow { grid-template-columns: repeat(2, 1fr); } .warningCards { grid-template-columns: 1fr; } .transactionMeta { flex-direction: column; align-items: start; } .transactionHeader { flex-direction: column; align-items: start; gap: 8px; } .inventoryActions { flex-wrap: wrap; } .editFormActions { flex-direction: column; } }
