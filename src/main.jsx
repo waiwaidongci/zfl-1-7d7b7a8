@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { CalendarDays, Clock, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, Wallet, Heart, CircleDollarSign, Timer, CheckCircle2, XCircle, AlertTriangle, Thermometer, Sun, Gauge, Settings, TrendingUp, TrendingDown, Grid3X3, Move, Info, Layers } from 'lucide-react';
+import { CalendarDays, Clock, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, Wallet, Heart, CircleDollarSign, Timer, CheckCircle2, XCircle, AlertTriangle, Thermometer, Sun, Gauge, Settings, TrendingUp, TrendingDown, Grid3X3, Move, Info, Layers, Camera, ClipboardList, Cloud, CloudOff, RefreshCw, Edit2, Save } from 'lucide-react';
 import './styles.css';
 
 const ZONE_CONFIG = {
@@ -323,6 +323,97 @@ const validateEnvThresholds = (data) => {
   );
 };
 
+const INSPECTION_ABNORMAL_TYPES = [
+  { value: 'pest', label: '虫害', color: 'danger' },
+  { value: 'disease', label: '病害', color: 'warning' },
+  { value: 'weed', label: '杂草', color: 'info' },
+  { value: 'water', label: '缺水/积水', color: 'info' },
+  { value: 'nutrition', label: '营养不良', color: 'warning' },
+  { value: 'equipment', label: '设备故障', color: 'danger' },
+  { value: 'other', label: '其他', color: 'muted' }
+];
+
+const INSPECTION_TREATMENT_RESULTS = [
+  { value: 'pending', label: '待处理', color: 'warning' },
+  { value: 'treated', label: '已处理', color: 'success' },
+  { value: 'escalated', label: '已上报', color: 'danger' },
+  { value: 'ignored', label: '无需处理', color: 'muted' }
+];
+
+const INSPECTION_SYNC_STATUS = {
+  DRAFT: 'draft',
+  PENDING: 'pending',
+  SYNCING: 'syncing',
+  SYNCED: 'synced',
+  FAILED: 'failed'
+};
+
+const MAX_RETRY_COUNT = 3;
+const DRAFT_AUTOSAVE_KEY = 'zfl-1-inspection-draft-autosave';
+
+const seedInspections = [
+  {
+    id: crypto.randomUUID(),
+    clientId: 'seed-inspection-1',
+    bedId: seedBeds[0].id,
+    bedName: 'A03薄荷香草畦',
+    abnormalType: 'pest',
+    abnormalNote: '发现少量蚜虫聚集在嫩叶背面',
+    treatmentResult: 'treated',
+    treatmentNote: '已喷施生物杀虫剂，3天后复查',
+    photoPlaceholders: ['photo-1-placeholder'],
+    syncStatus: 'synced',
+    retryCount: 0,
+    lastError: null,
+    createdAt: iso(-2) + 'T09:30:00',
+    updatedAt: iso(-2) + 'T09:30:00',
+    syncedAt: iso(-2) + 'T09:32:00',
+    inspector: '李雨晴'
+  },
+  {
+    id: crypto.randomUUID(),
+    clientId: 'seed-inspection-2',
+    bedId: seedBeds[1].id,
+    bedName: 'B07番茄试验畦',
+    abnormalType: 'nutrition',
+    abnormalNote: '下部叶片发黄，疑似缺氮',
+    treatmentResult: 'pending',
+    treatmentNote: '',
+    photoPlaceholders: [],
+    syncStatus: 'pending',
+    retryCount: 0,
+    lastError: null,
+    createdAt: iso(0) + 'T15:20:00',
+    updatedAt: iso(0) + 'T15:20:00',
+    syncedAt: null,
+    inspector: '现场巡检员'
+  }
+];
+
+const validateInspections = (data) => {
+  if (!Array.isArray(data)) return false;
+  return data.every((item) =>
+    typeof item === 'object' &&
+    item !== null &&
+    typeof item.id === 'string' &&
+    typeof item.clientId === 'string' &&
+    typeof item.bedId === 'string' &&
+    typeof item.createdAt === 'string'
+  );
+};
+
+const validateSyncQueue = (data) => {
+  if (!Array.isArray(data)) return false;
+  return data.every((item) =>
+    typeof item === 'object' &&
+    item !== null &&
+    typeof item.id === 'string' &&
+    typeof item.type === 'string'
+  );
+};
+
+const generateClientId = () => `inspection-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [beds, setBeds] = useStoredState('zfl-1-beds', seedBeds, null, migrateBedPositions);
@@ -370,6 +461,92 @@ function App() {
   const [selectedBed, setSelectedBed] = useState(null);
   const [showBedDetail, setShowBedDetail] = useState(false);
   const [floorMapZoneFilter, setFloorMapZoneFilter] = useState('');
+
+  const [inspections, setInspections] = useStoredState('zfl-1-inspections', seedInspections, validateInspections);
+  const [syncQueue, setSyncQueue] = useStoredState('zfl-1-sync-queue', [], validateSyncQueue);
+  const [inspectionForm, setInspectionForm] = useState({
+    bedId: '',
+    bedName: '',
+    abnormalType: '',
+    abnormalNote: '',
+    treatmentResult: 'pending',
+    treatmentNote: '',
+    photoPlaceholders: [],
+    inspector: ''
+  });
+  const [inspectionQuery, setInspectionQuery] = useState('');
+  const [inspectionSyncFilter, setInspectionSyncFilter] = useState('');
+  const [inspectionAbnormalFilter, setInspectionAbnormalFilter] = useState('');
+  const [editingInspectionId, setEditingInspectionId] = useState(null);
+  const [showRecoverDraftNotice, setShowRecoverDraftNotice] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  
+  useEffect(() => {
+    try {
+      const rawDraft = localStorage.getItem(DRAFT_AUTOSAVE_KEY);
+      if (rawDraft) {
+        const draft = JSON.parse(rawDraft);
+        if (draft && draft.bedId) {
+          setShowRecoverDraftNotice(true);
+        }
+      }
+    } catch (err) {
+      console.warn('[巡检草稿] 读取草稿失败', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'inspection') {
+      const hasContent = inspectionForm.bedId || inspectionForm.abnormalType || 
+                         inspectionForm.abnormalNote || inspectionForm.treatmentNote;
+      if (hasContent && !editingInspectionId) {
+        try {
+          localStorage.setItem(DRAFT_AUTOSAVE_KEY, JSON.stringify({
+            ...inspectionForm,
+            savedAt: new Date().toISOString()
+          }));
+        } catch (err) {
+          console.warn('[巡检草稿] 自动保存失败', err);
+        }
+      }
+    }
+  }, [inspectionForm, activeTab, editingInspectionId]);
+
+  useEffect(() => {
+    if (activeTab !== 'inspection') {
+      const hasContent = inspectionForm.bedId || inspectionForm.abnormalType || 
+                         inspectionForm.abnormalNote || inspectionForm.treatmentNote;
+      if (hasContent && !editingInspectionId) {
+        try {
+          localStorage.setItem(DRAFT_AUTOSAVE_KEY, JSON.stringify({
+            ...inspectionForm,
+            savedAt: new Date().toISOString()
+          }));
+        } catch (err) {
+          console.warn('[巡检草稿] 自动保存失败', err);
+        }
+      }
+    }
+  }, [activeTab]);
+
+  const recoverDraft = () => {
+    try {
+      const rawDraft = localStorage.getItem(DRAFT_AUTOSAVE_KEY);
+      if (rawDraft) {
+        const draft = JSON.parse(rawDraft);
+        const { savedAt, ...formData } = draft;
+        setInspectionForm(formData);
+      }
+    } catch (err) {
+      console.warn('[巡检草稿] 恢复草稿失败', err);
+    }
+    setShowRecoverDraftNotice(false);
+  };
+
+  const discardDraft = () => {
+    localStorage.removeItem(DRAFT_AUTOSAVE_KEY);
+    setShowRecoverDraftNotice(false);
+  };
   
   useEffect(() => {
     if (bedForm.name.trim()) {
@@ -688,6 +865,268 @@ function App() {
 
   const toggleTask = (id) => setTasks(tasks.map((task) => task.id === id ? { ...task, done: !task.done } : task));
   const advanceWater = (id) => setBeds(beds.map((bed) => bed.id === id ? { ...bed, nextWater: iso(3), warning: '' } : bed));
+
+  const inspectionStats = useMemo(() => {
+    const pending = inspections.filter((i) => i.syncStatus === INSPECTION_SYNC_STATUS.PENDING).length;
+    const syncing = inspections.filter((i) => i.syncStatus === INSPECTION_SYNC_STATUS.SYNCING).length;
+    const synced = inspections.filter((i) => i.syncStatus === INSPECTION_SYNC_STATUS.SYNCED).length;
+    const failed = inspections.filter((i) => i.syncStatus === INSPECTION_SYNC_STATUS.FAILED).length;
+    const todayStr = iso(0);
+    const todayCount = inspections.filter((i) => i.createdAt && i.createdAt.startsWith(todayStr)).length;
+    return { total: inspections.length, pending, syncing, synced, failed, todayCount };
+  }, [inspections]);
+
+  const filteredInspections = useMemo(() => {
+    let result = [...inspections];
+    if (inspectionQuery.trim()) {
+      const q = inspectionQuery.trim();
+      result = result.filter((i) => 
+        `${i.bedName || ''}${i.abnormalNote || ''}${i.treatmentNote || ''}${i.inspector || ''}`.includes(q)
+      );
+    }
+    if (inspectionSyncFilter) {
+      result = result.filter((i) => i.syncStatus === inspectionSyncFilter);
+    }
+    if (inspectionAbnormalFilter) {
+      result = result.filter((i) => i.abnormalType === inspectionAbnormalFilter);
+    }
+    return result.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  }, [inspections, inspectionQuery, inspectionSyncFilter, inspectionAbnormalFilter]);
+
+  const getAbnormalTypeInfo = (value) => {
+    return INSPECTION_ABNORMAL_TYPES.find((t) => t.value === value) || { label: value, color: 'muted' };
+  };
+
+  const getTreatmentResultInfo = (value) => {
+    return INSPECTION_TREATMENT_RESULTS.find((t) => t.value === value) || { label: value, color: 'muted' };
+  };
+
+  const getSyncStatusInfo = (status) => {
+    const map = {
+      [INSPECTION_SYNC_STATUS.DRAFT]: { label: '草稿', color: 'muted', icon: 'edit' },
+      [INSPECTION_SYNC_STATUS.PENDING]: { label: '待同步', color: 'warning', icon: 'clock' },
+      [INSPECTION_SYNC_STATUS.SYNCING]: { label: '同步中', color: 'info', icon: 'loader' },
+      [INSPECTION_SYNC_STATUS.SYNCED]: { label: '已同步', color: 'success', icon: 'check' },
+      [INSPECTION_SYNC_STATUS.FAILED]: { label: '同步失败', color: 'danger', icon: 'alert' }
+    };
+    return map[status] || { label: status, color: 'muted', icon: 'info' };
+  };
+
+  const selectInspectionBed = (bedId) => {
+    const bed = beds.find((b) => b.id === bedId);
+    if (bed) {
+      setInspectionForm({ ...inspectionForm, bedId: bed.id, bedName: bed.name });
+    } else {
+      setInspectionForm({ ...inspectionForm, bedId: '', bedName: '' });
+    }
+  };
+
+  const addPhotoPlaceholder = () => {
+    const placeholderId = `photo-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    setInspectionForm({
+      ...inspectionForm,
+      photoPlaceholders: [...inspectionForm.photoPlaceholders, placeholderId]
+    });
+  };
+
+  const removePhotoPlaceholder = (placeholderId) => {
+    setInspectionForm({
+      ...inspectionForm,
+      photoPlaceholders: inspectionForm.photoPlaceholders.filter((id) => id !== placeholderId)
+    });
+  };
+
+  const resetInspectionForm = () => {
+    setInspectionForm({
+      bedId: '',
+      bedName: '',
+      abnormalType: '',
+      abnormalNote: '',
+      treatmentResult: 'pending',
+      treatmentNote: '',
+      photoPlaceholders: [],
+      inspector: ''
+    });
+    setEditingInspectionId(null);
+    localStorage.removeItem(DRAFT_AUTOSAVE_KEY);
+  };
+
+  const isDuplicateInspection = (bedId, abnormalType, excludeId = null) => {
+    const todayStr = iso(0);
+    return inspections.some((i) => {
+      if (excludeId && i.id === excludeId) return false;
+      return i.bedId === bedId &&
+             i.abnormalType === abnormalType &&
+             i.createdAt &&
+             i.createdAt.startsWith(todayStr);
+    });
+  };
+
+  const saveInspection = (event, options = {}) => {
+    if (event) event.preventDefault();
+    if (!inspectionForm.bedId.trim()) {
+      alert('请选择菜畦');
+      return;
+    }
+    if (!inspectionForm.abnormalType.trim()) {
+      alert('请选择异常类型');
+      return;
+    }
+
+    const { asDraft = false } = options;
+
+    if (!asDraft && !editingInspectionId) {
+      if (isDuplicateInspection(inspectionForm.bedId, inspectionForm.abnormalType)) {
+        const confirmDup = confirm('今日该菜畦已记录过相同类型的异常，是否仍然提交？');
+        if (!confirmDup) return;
+      }
+    }
+
+    const now = new Date().toISOString();
+    const clientId = editingInspectionId 
+      ? (inspections.find((i) => i.id === editingInspectionId)?.clientId || generateClientId())
+      : generateClientId();
+
+    if (editingInspectionId) {
+      setInspections(inspections.map((i) => {
+        if (i.id === editingInspectionId) {
+          return {
+            ...i,
+            ...inspectionForm,
+            updatedAt: now,
+            syncStatus: asDraft ? INSPECTION_SYNC_STATUS.DRAFT : INSPECTION_SYNC_STATUS.PENDING
+          };
+        }
+        return i;
+      }));
+
+      if (!asDraft) {
+        const existing = syncQueue.find((q) => q.id === editingInspectionId);
+        if (!existing) {
+          setSyncQueue([...syncQueue, {
+            id: editingInspectionId,
+            clientId,
+            type: 'update',
+            data: { ...inspectionForm },
+            retryCount: 0,
+            addedAt: now
+          }]);
+        }
+      }
+    } else {
+      const newInspection = {
+        id: crypto.randomUUID(),
+        clientId,
+        ...inspectionForm,
+        syncStatus: asDraft ? INSPECTION_SYNC_STATUS.DRAFT : INSPECTION_SYNC_STATUS.PENDING,
+        retryCount: 0,
+        lastError: null,
+        createdAt: now,
+        updatedAt: now,
+        syncedAt: null
+      };
+      setInspections([newInspection, ...inspections]);
+
+      if (!asDraft) {
+        setSyncQueue([...syncQueue, {
+          id: newInspection.id,
+          clientId,
+          type: 'create',
+          data: { ...inspectionForm },
+          retryCount: 0,
+          addedAt: now
+        }]);
+      }
+    }
+
+    resetInspectionForm();
+  };
+
+  const editInspection = (inspection) => {
+    setInspectionForm({
+      bedId: inspection.bedId,
+      bedName: inspection.bedName,
+      abnormalType: inspection.abnormalType,
+      abnormalNote: inspection.abnormalNote || '',
+      treatmentResult: inspection.treatmentResult,
+      treatmentNote: inspection.treatmentNote || '',
+      photoPlaceholders: inspection.photoPlaceholders || [],
+      inspector: inspection.inspector || ''
+    });
+    setEditingInspectionId(inspection.id);
+  };
+
+  const deleteInspection = (id) => {
+    if (!confirm('确定要删除这条巡检记录吗？')) return;
+    setInspections(inspections.filter((i) => i.id !== id));
+    setSyncQueue(syncQueue.filter((q) => q.id !== id));
+  };
+
+  const syncInspection = async (inspectionId) => {
+    const inspection = inspections.find((i) => i.id === inspectionId);
+    if (!inspection) return;
+    if (inspection.syncStatus === INSPECTION_SYNC_STATUS.SYNCING) return;
+
+    setInspections(inspections.map((i) => 
+      i.id === inspectionId ? { ...i, syncStatus: INSPECTION_SYNC_STATUS.SYNCING, lastError: null } : i
+    ));
+
+    try {
+      await new Promise((resolve, reject) => {
+        setTimeout(() => {
+          if (Math.random() < 0.7) {
+            resolve();
+          } else {
+            reject(new Error('模拟网络错误：连接超时'));
+          }
+        }, 1000 + Math.random() * 500);
+      });
+
+      const now = new Date().toISOString();
+      setInspections(inspections.map((i) => 
+        i.id === inspectionId 
+          ? { ...i, syncStatus: INSPECTION_SYNC_STATUS.SYNCED, syncedAt: now, retryCount: 0, lastError: null, updatedAt: now } 
+          : i
+      ));
+      setSyncQueue(syncQueue.filter((q) => q.id !== inspectionId));
+    } catch (err) {
+      const currentInspection = inspections.find((i) => i.id === inspectionId);
+      const newRetryCount = (currentInspection?.retryCount || 0) + 1;
+      const isFailed = newRetryCount >= MAX_RETRY_COUNT;
+
+      setInspections(inspections.map((i) => 
+        i.id === inspectionId 
+          ? { 
+              ...i, 
+              syncStatus: isFailed ? INSPECTION_SYNC_STATUS.FAILED : INSPECTION_SYNC_STATUS.PENDING,
+              retryCount: newRetryCount,
+              lastError: err.message,
+              updatedAt: new Date().toISOString()
+            } 
+          : i
+      ));
+    }
+  };
+
+  const syncAllPending = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+
+    const pendingItems = inspections.filter((i) => 
+      i.syncStatus === INSPECTION_SYNC_STATUS.PENDING || 
+      i.syncStatus === INSPECTION_SYNC_STATUS.FAILED
+    );
+
+    for (const item of pendingItems) {
+      await syncInspection(item.id);
+    }
+
+    setIsSyncing(false);
+  };
+
+  const retrySync = (inspectionId) => {
+    syncInspection(inspectionId);
+  };
 
   const harvestOptions = useMemo(() => beds.map((bed) => bed.name), [beds]);
   const contactBedOptions = useMemo(() => beds.filter((bed) => bed.adopter).map((bed) => ({ id: bed.id, name: bed.name, adopter: bed.adopter, phone: bed.phone })), [beds]);
@@ -1474,6 +1913,9 @@ function App() {
         </button>
         <button className={activeTab === 'environment' ? 'tab active' : 'tab'} onClick={() => setActiveTab('environment')}>
           <Gauge size={16} />环境监测
+        </button>
+        <button className={activeTab === 'inspection' ? 'tab active' : 'tab'} onClick={() => setActiveTab('inspection')}>
+          <ClipboardList size={16} />离线巡检
         </button>
       </nav>
 
@@ -2875,6 +3317,328 @@ function App() {
               </div>
             </section>
           )}
+        </>
+      )}
+
+      {activeTab === 'inspection' && (
+        <>
+          <section className="inspectionHero">
+            <div className="inspectionHeroMain">
+              <h2><ClipboardList size={20} />离线巡检工作台</h2>
+              <p className="muted">面向手机现场巡检使用，支持无网络环境下记录，有网后自动同步</p>
+            </div>
+            <div className="inspectionSyncBar">
+              {inspectionStats.pending + inspectionStats.failed > 0 ? (
+                <button 
+                  type="button" 
+                  className={`syncAllBtn ${isSyncing ? 'syncing' : ''}`}
+                  onClick={syncAllPending}
+                  disabled={isSyncing}
+                >
+                  {isSyncing ? (
+                    <><RefreshCw size={16} className="spinning" />同步中...</>
+                  ) : (
+                    <><Cloud size={16} />一键同步 ({inspectionStats.pending + inspectionStats.failed})</>
+                  )}
+                </button>
+              ) : (
+                <span className="allSyncedTag"><CheckCircle2 size={16} />全部已同步</span>
+              )}
+              <div className="inspectionQuickStats">
+                <span className="quickStat"><CloudOff size={12} />待同步 {inspectionStats.pending}</span>
+                {inspectionStats.failed > 0 && <span className="quickStat danger"><AlertCircle size={12} />失败 {inspectionStats.failed}</span>}
+                <span className="quickStat success"><Cloud size={12} />已同步 {inspectionStats.synced}</span>
+                <span className="quickStat"><CalendarCheck size={12} />今日 {inspectionStats.todayCount}</span>
+              </div>
+            </div>
+          </section>
+
+          {showRecoverDraftNotice && (
+            <div className="draftRecoverBanner">
+              <AlertCircle size={18} />
+              <span>检测到上次未完成的巡检草稿，是否恢复？</span>
+              <div className="draftRecoverActions">
+                <button type="button" className="miniBtn" onClick={recoverDraft}><Edit2 size={12} />恢复草稿</button>
+                <button type="button" className="miniBtn danger" onClick={discardDraft}><Trash2 size={12} />丢弃</button>
+              </div>
+            </div>
+          )}
+
+          <section className="workspace inspectionWorkspace">
+            <div className="panel inspectionFormPanel">
+              <div className="toolbar">
+                <h2>{editingInspectionId ? <><Edit2 size={16} />编辑巡检</> : <><Plus size={16} />新增巡检记录</>}</h2>
+                {editingInspectionId && (
+                  <button type="button" className="miniBtn danger" onClick={resetInspectionForm}>
+                    <XCircle size={12} />取消编辑
+                  </button>
+                )}
+              </div>
+
+              <form onSubmit={(e) => saveInspection(e)} className="inspectionForm">
+                <div className="formField">
+                  <label className="fieldLabel"><MapPin size={14} /> 选择菜畦 *</label>
+                  <select 
+                    value={inspectionForm.bedId} 
+                    onChange={(e) => selectInspectionBed(e.target.value)}
+                  >
+                    <option value="">请选择菜畦...</option>
+                    {beds.map((bed) => (
+                      <option key={bed.id} value={bed.id}>{bed.name} - {bed.crop || '暂无作物'}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="formField">
+                  <label className="fieldLabel"><AlertTriangle size={14} /> 异常类型 *</label>
+                  <div className="abnormalTypeGrid">
+                    {INSPECTION_ABNORMAL_TYPES.map((type) => (
+                      <button
+                        key={type.value}
+                        type="button"
+                        className={`abnormalTypeBtn ${inspectionForm.abnormalType === type.value ? 'active ' + type.color : ''}`}
+                        onClick={() => setInspectionForm({ ...inspectionForm, abnormalType: type.value })}
+                      >
+                        {type.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="formField">
+                  <label className="fieldLabel"><MessageCircle size={14} /> 异常描述</label>
+                  <textarea
+                    rows={3}
+                    placeholder="请描述发现的异常情况、位置、严重程度等..."
+                    value={inspectionForm.abnormalNote}
+                    onChange={(e) => setInspectionForm({ ...inspectionForm, abnormalNote: e.target.value })}
+                  />
+                </div>
+
+                <div className="formField">
+                  <label className="fieldLabel"><CheckCircle2 size={14} /> 处理结果</label>
+                  <div className="treatmentResultGrid">
+                    {INSPECTION_TREATMENT_RESULTS.map((result) => (
+                      <button
+                        key={result.value}
+                        type="button"
+                        className={`treatmentResultBtn ${inspectionForm.treatmentResult === result.value ? 'active ' + result.color : ''}`}
+                        onClick={() => setInspectionForm({ ...inspectionForm, treatmentResult: result.value })}
+                      >
+                        {result.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="formField">
+                  <label className="fieldLabel"><Edit2 size={14} /> 处理说明</label>
+                  <textarea
+                    rows={2}
+                    placeholder="处理措施、用药情况、需要后续跟进的事项等..."
+                    value={inspectionForm.treatmentNote}
+                    onChange={(e) => setInspectionForm({ ...inspectionForm, treatmentNote: e.target.value })}
+                  />
+                </div>
+
+                <div className="formField">
+                  <label className="fieldLabel"><Camera size={14} /> 现场照片（占位）</label>
+                  <div className="photoPlaceholderGrid">
+                    {inspectionForm.photoPlaceholders.map((phId) => (
+                      <div key={phId} className="photoPlaceholder">
+                        <Camera size={24} />
+                        <span>照片占位</span>
+                        <button 
+                          type="button" 
+                          className="photoRemoveBtn"
+                          onClick={() => removePhotoPlaceholder(phId)}
+                        >
+                          <XCircle size={16} />
+                        </button>
+                      </div>
+                    ))}
+                    <button 
+                      type="button" 
+                      className="photoAddBtn"
+                      onClick={addPhotoPlaceholder}
+                    >
+                      <Camera size={20} />
+                      <span>添加照片</span>
+                    </button>
+                  </div>
+                  <p className="fieldHint">* 实际项目中此处将调用相机或相册，当前为占位功能</p>
+                </div>
+
+                <div className="formField">
+                  <label className="fieldLabel"><Users size={14} /> 巡检员</label>
+                  <input
+                    type="text"
+                    placeholder="请输入巡检员姓名"
+                    value={inspectionForm.inspector}
+                    onChange={(e) => setInspectionForm({ ...inspectionForm, inspector: e.target.value })}
+                  />
+                </div>
+
+                <div className="inspectionFormActions">
+                  <button type="button" className="clearBtn" onClick={resetInspectionForm}>
+                    <XCircle size={14} />清空
+                  </button>
+                  <button type="button" className="draftBtn" onClick={(e) => saveInspection(e, { asDraft: true })}>
+                    <Save size={14} />保存草稿
+                  </button>
+                  <button type="submit" className="primaryBtn">
+                    <CheckCircle2 size={14} />{editingInspectionId ? '保存并排队同步' : '提交巡检'}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div className="panel wide inspectionListPanel">
+              <div className="toolbar">
+                <h2><History size={16} />巡检记录</h2>
+                <div className="toolbarActions">
+                  <label>
+                    <Search size={14} />
+                    <input 
+                      type="text" 
+                      placeholder="搜索菜畦、描述..." 
+                      value={inspectionQuery}
+                      onChange={(e) => setInspectionQuery(e.target.value)}
+                    />
+                  </label>
+                  <select 
+                    className="filterSelect"
+                    value={inspectionSyncFilter}
+                    onChange={(e) => setInspectionSyncFilter(e.target.value)}
+                  >
+                    <option value="">全部状态</option>
+                    <option value="pending">待同步</option>
+                    <option value="syncing">同步中</option>
+                    <option value="synced">已同步</option>
+                    <option value="failed">同步失败</option>
+                    <option value="draft">草稿</option>
+                  </select>
+                  <select
+                    className="filterSelect"
+                    value={inspectionAbnormalFilter}
+                    onChange={(e) => setInspectionAbnormalFilter(e.target.value)}
+                  >
+                    <option value="">全部异常</option>
+                    {INSPECTION_ABNORMAL_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {filteredInspections.length === 0 ? (
+                <div className="emptyState">
+                  <ClipboardList size={40} />
+                  <p>暂无巡检记录</p>
+                  <p className="muted">在左侧表单提交第一条巡检记录</p>
+                </div>
+              ) : (
+                <div className="inspectionList">
+                  {filteredInspections.map((inspection) => {
+                    const abnormalInfo = getAbnormalTypeInfo(inspection.abnormalType);
+                    const treatmentInfo = getTreatmentResultInfo(inspection.treatmentResult);
+                    const syncInfo = getSyncStatusInfo(inspection.syncStatus);
+                    return (
+                      <div key={inspection.id} className={`inspectionCard sync-${syncInfo.color}`}>
+                        <div className="inspectionCardHeader">
+                          <div className="inspectionCardTitle">
+                            <strong>{inspection.bedName}</strong>
+                            <span className={`abnormalTag ${abnormalInfo.color}`}>{abnormalInfo.label}</span>
+                          </div>
+                          <div className="inspectionCardSync">
+                            <span className={`syncStatusTag ${syncInfo.color}`}>
+                              {syncInfo.icon === 'check' && <CheckCircle2 size={12} />}
+                              {syncInfo.icon === 'clock' && <Clock size={12} />}
+                              {syncInfo.icon === 'loader' && <RefreshCw size={12} className="spinning" />}
+                              {syncInfo.icon === 'alert' && <AlertCircle size={12} />}
+                              {syncInfo.icon === 'edit' && <Edit2 size={12} />}
+                              {syncInfo.label}
+                            </span>
+                            {inspection.retryCount > 0 && (
+                              <span className="retryCount">重试 {inspection.retryCount}/{MAX_RETRY_COUNT}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="inspectionCardBody">
+                          {inspection.abnormalNote && (
+                            <p className="inspectionNote"><AlertTriangle size={13} /> {inspection.abnormalNote}</p>
+                          )}
+                          <div className="inspectionMeta">
+                            <span className={`treatmentTag ${treatmentInfo.color}`}>
+                              <CheckCircle2 size={11} /> {treatmentInfo.label}
+                            </span>
+                            {inspection.treatmentNote && (
+                              <span className="treatmentNote">{inspection.treatmentNote}</span>
+                            )}
+                          </div>
+                          {inspection.photoPlaceholders && inspection.photoPlaceholders.length > 0 && (
+                            <div className="inspectionPhotos">
+                              {inspection.photoPlaceholders.map((ph, idx) => (
+                                <span key={idx} className="photoMiniTag">
+                                  <Camera size={11} /> 照片{idx + 1}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {inspection.lastError && (
+                            <p className="syncError"><AlertCircle size={13} /> {inspection.lastError}</p>
+                          )}
+                        </div>
+
+                        <div className="inspectionCardFooter">
+                          <div className="inspectionDateTime">
+                            <CalendarDays size={12} /> {inspection.createdAt?.replace('T', ' ').slice(0, 16)}
+                            {inspection.inspector && <span className="inspectorName"> · {inspection.inspector}</span>}
+                            {inspection.syncedAt && <span className="syncedAt"> · 同步于 {inspection.syncedAt.replace('T', ' ').slice(5, 16)}</span>}
+                          </div>
+                          <div className="inspectionCardActions">
+                            {(inspection.syncStatus === INSPECTION_SYNC_STATUS.PENDING || 
+                              inspection.syncStatus === INSPECTION_SYNC_STATUS.FAILED) && (
+                              <button 
+                                type="button" 
+                                className="miniBtn"
+                                onClick={() => retrySync(inspection.id)}
+                                disabled={inspection.syncStatus === INSPECTION_SYNC_STATUS.SYNCING}
+                              >
+                                <RefreshCw size={12} />重试同步
+                              </button>
+                            )}
+                            <button 
+                              type="button" 
+                              className="miniBtn"
+                              onClick={() => editInspection(inspection)}
+                            >
+                              <Edit2 size={12} />编辑
+                            </button>
+                            <button 
+                              type="button" 
+                              className="miniBtn danger"
+                              onClick={() => deleteInspection(inspection.id)}
+                            >
+                              <Trash2 size={12} />删除
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {syncQueue.length > 0 && (
+                <div className="syncQueueInfo">
+                  <CloudOff size={14} /> 本地同步队列中有 <strong>{syncQueue.length}</strong> 条记录等待上传
+                  <span className="muted">（数据结构已预留给后端API集成：clientId 用于幂等去重，data 字段包含完整提交参数）</span>
+                </div>
+              )}
+            </div>
+          </section>
         </>
       )}
 

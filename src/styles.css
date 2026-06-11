@@ -954,3 +954,609 @@ textarea { width: 100%; border: 1px solid #cdd8c3; border-radius: 8px; padding: 
 }
 
 @media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } .toolbarActions { width: 100%; flex-direction: column; } .filterSelect { width: 100%; } .contactHeader { flex-direction: column; align-items: start; gap: 8px; } .plantDates { justify-content: space-between; } .stockRow { grid-template-columns: repeat(2, 1fr); } .warningCards { grid-template-columns: 1fr; } .transactionMeta { flex-direction: column; align-items: start; } .transactionHeader { flex-direction: column; align-items: start; gap: 8px; } .inventoryActions { flex-wrap: wrap; } .editFormActions { flex-direction: column; } .feeDetailRow { grid-template-columns: 1fr; } .feeHeader { flex-direction: column; align-items: start; } .feeActions { flex-wrap: wrap; } .feeSummaryBar { flex-direction: column; gap: 8px; } .feeExpiryCards { grid-template-columns: 1fr; } .feeExpiryCard { flex-direction: column; align-items: start; } .feeExpiryMeta { flex-direction: row; align-items: center; } .trendCharts { grid-template-columns: 1fr; } .envWaterValue { font-size: 36px; } .envSensorValue { font-size: 28px; } .distributionHarvestInfo { grid-template-columns: 1fr; } .distributionFields { grid-template-columns: 1fr; } .harvestMiniCard > div:first-child { flex-direction: column; align-items: start !important; gap: 6px; } .distributionStatusTag { align-self: flex-start; } }
+
+.inspectionHero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px;
+  background: linear-gradient(135deg, #2f613a, #4a7c3f);
+  border-radius: 8px;
+  color: #fff;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.inspectionHero h2 {
+  color: #fff;
+  margin: 0;
+}
+.inspectionHero p {
+  margin: 4px 0 0;
+  opacity: 0.85;
+}
+.inspectionSyncBar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+.syncAllBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: #fff;
+  color: #2f613a;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.syncAllBtn:hover:not(:disabled) {
+  background: #eef5e9;
+  transform: translateY(-1px);
+}
+.syncAllBtn:disabled, .syncAllBtn.syncing {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.allSyncedTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 6px;
+  font-weight: 500;
+}
+.inspectionQuickStats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.quickStat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 4px;
+  font-size: 13px;
+}
+.quickStat.success {
+  background: rgba(184, 230, 184, 0.25);
+}
+.quickStat.danger {
+  background: rgba(240, 160, 160, 0.25);
+}
+.draftRecoverBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: #fef8e8;
+  border: 1px solid #f0d6a0;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  color: #8a6a2c;
+  flex-wrap: wrap;
+}
+.draftRecoverBanner span {
+  flex: 1;
+  min-width: 200px;
+}
+.draftRecoverActions {
+  display: flex;
+  gap: 8px;
+}
+.draftRecoverActions .miniBtn.danger {
+  background: #fbe3e3;
+  color: #8a2c2c;
+  border-color: #e8c9bc;
+}
+.inspectionWorkspace {
+  align-items: start;
+}
+.inspectionFormPanel {
+  position: sticky;
+  top: 16px;
+}
+.inspectionForm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fieldLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #55624e;
+}
+.fieldHint {
+  font-size: 12px;
+  color: #87917f;
+  margin: 0;
+}
+.abnormalTypeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.abnormalTypeBtn, .treatmentResultBtn {
+  padding: 10px 12px;
+  border: 1.5px solid #dfe7d7;
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #55624e;
+  transition: all 0.15s;
+  text-align: center;
+}
+.abnormalTypeBtn:hover, .treatmentResultBtn:hover {
+  background: #f8faf5;
+  border-color: #cdd8c3;
+}
+.abnormalTypeBtn.active {
+  border-width: 2px;
+  font-weight: 600;
+}
+.abnormalTypeBtn.active.danger {
+  background: #fef0f0;
+  border-color: #e8a0a0;
+  color: #8a2c2c;
+}
+.abnormalTypeBtn.active.warning {
+  background: #fef8e8;
+  border-color: #e6c77a;
+  color: #8a6a2c;
+}
+.abnormalTypeBtn.active.info {
+  background: #eef5fb;
+  border-color: #a0c8e8;
+  color: #2c5f8a;
+}
+.abnormalTypeBtn.active.muted {
+  background: #f0f2ec;
+  border-color: #cdd8c3;
+  color: #55624e;
+}
+.treatmentResultGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.treatmentResultBtn.active.success {
+  background: #eaf7e6;
+  border-color: #a8d898;
+  color: #3d7a2c;
+  font-weight: 600;
+  border-width: 2px;
+}
+.treatmentResultBtn.active.warning {
+  background: #fef8e8;
+  border-color: #e6c77a;
+  color: #8a6a2c;
+  font-weight: 600;
+  border-width: 2px;
+}
+.treatmentResultBtn.active.danger {
+  background: #fef0f0;
+  border-color: #e8a0a0;
+  color: #8a2c2c;
+  font-weight: 600;
+  border-width: 2px;
+}
+.treatmentResultBtn.active.muted {
+  background: #f0f2ec;
+  border-color: #cdd8c3;
+  color: #55624e;
+  font-weight: 600;
+  border-width: 2px;
+}
+.photoPlaceholderGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.photoPlaceholder {
+  position: relative;
+  aspect-ratio: 1;
+  background: #f0f2ec;
+  border: 2px dashed #cdd8c3;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #87917f;
+  font-size: 11px;
+}
+.photoRemoveBtn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: #fff;
+  border: 1px solid #e8c9bc;
+  border-radius: 50%;
+  color: #8a2c2c;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.photoRemoveBtn:hover {
+  background: #fbe3e3;
+}
+.photoAddBtn {
+  aspect-ratio: 1;
+  background: #eef5e9;
+  border: 2px dashed #3d7a2c;
+  border-radius: 8px;
+  color: #2f613a;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+.photoAddBtn:hover {
+  background: #d5edcc;
+}
+.inspectionFormActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.inspectionFormActions button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.draftBtn {
+  background: #f5ecd8;
+  color: #8a6a2c;
+}
+.draftBtn:hover {
+  background: #efe1bd;
+}
+.primaryBtn {
+  background: #2f613a;
+  color: #fff;
+  font-weight: 600;
+}
+.primaryBtn:hover {
+  background: #244e2d;
+}
+.inspectionListPanel {
+  min-height: 600px;
+}
+.inspectionList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.inspectionCard {
+  background: #fbfcf8;
+  border: 1px solid #dfe7d7;
+  border-left: 4px solid #dfe7d7;
+  border-radius: 8px;
+  padding: 14px 16px;
+  transition: all 0.2s;
+}
+.inspectionCard:hover {
+  box-shadow: 0 2px 8px rgba(44, 61, 34, 0.08);
+}
+.inspectionCard.sync-success {
+  border-left-color: #3d7a2c;
+}
+.inspectionCard.sync-warning {
+  border-left-color: #e6c77a;
+}
+.inspectionCard.sync-danger {
+  border-left-color: #c0392b;
+}
+.inspectionCard.sync-info {
+  border-left-color: #2c5f8a;
+}
+.inspectionCard.sync-muted {
+  border-left-color: #95a08b;
+}
+.inspectionCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.inspectionCardTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.inspectionCardTitle strong {
+  font-size: 16px;
+  color: #243222;
+}
+.abnormalTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.abnormalTag.danger {
+  background: #fbe3e3;
+  color: #8a2c2c;
+}
+.abnormalTag.warning {
+  background: #fef0d0;
+  color: #8a6a2c;
+}
+.abnormalTag.info {
+  background: #e3f0fb;
+  color: #2c5f8a;
+}
+.abnormalTag.muted {
+  background: #eef2eb;
+  color: #55624e;
+}
+.inspectionCardSync {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.syncStatusTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.syncStatusTag.success {
+  background: #e8f5e3;
+  color: #3d7a2c;
+}
+.syncStatusTag.warning {
+  background: #fef8e8;
+  color: #8a6a2c;
+}
+.syncStatusTag.info {
+  background: #e3f0fb;
+  color: #2c5f8a;
+}
+.syncStatusTag.danger {
+  background: #fbe3e3;
+  color: #8a2c2c;
+}
+.syncStatusTag.muted {
+  background: #eef2eb;
+  color: #55624e;
+}
+.retryCount {
+  font-size: 12px;
+  color: #8b3f23;
+  background: #fbeae2;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.inspectionCardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.inspectionNote {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: #3c4d38;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.inspectionMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.treatmentTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.treatmentTag.success {
+  background: #e8f5e3;
+  color: #3d7a2c;
+}
+.treatmentTag.warning {
+  background: #fef8e8;
+  color: #8a6a2c;
+}
+.treatmentTag.danger {
+  background: #fbe3e3;
+  color: #8a2c2c;
+}
+.treatmentTag.muted {
+  background: #eef2eb;
+  color: #55624e;
+}
+.treatmentNote {
+  font-size: 13px;
+  color: #55624e;
+}
+.inspectionPhotos {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.photoMiniTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: #f0f2ec;
+  color: #71806a;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.syncError {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: #8a2c2c;
+  font-size: 13px;
+  padding: 8px 10px;
+  background: #fef0f0;
+  border-radius: 6px;
+}
+.inspectionCardFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed #dfe7d7;
+  flex-wrap: wrap;
+}
+.inspectionDateTime {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #71806a;
+  flex-wrap: wrap;
+}
+.inspectorName {
+  color: #55624e;
+}
+.syncedAt {
+  color: #3d7a2c;
+}
+.inspectionCardActions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.inspectionCardActions .miniBtn.danger {
+  background: #fff;
+  color: #8a2c2c;
+  border-color: #e8c9bc;
+}
+.inspectionCardActions .miniBtn.danger:hover {
+  background: #fbe3e3;
+}
+.syncQueueInfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  margin-top: 16px;
+  background: #fef8e8;
+  border: 1px solid #f0d6a0;
+  border-radius: 8px;
+  color: #8a6a2c;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.syncQueueInfo strong {
+  color: #5a4a1e;
+}
+.spinning {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 900px) {
+  .inspectionHero {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .inspectionSyncBar {
+    align-items: stretch;
+  }
+  .inspectionQuickStats {
+    justify-content: flex-start;
+  }
+  .abnormalTypeGrid, .treatmentResultGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .photoPlaceholderGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .inspectionFormActions {
+    flex-direction: column;
+  }
+  .inspectionCardFooter {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .inspectionCardActions {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 600px) {
+  .abnormalTypeGrid, .treatmentResultGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .photoPlaceholderGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .inspectionHero {
+    padding: 16px;
+  }
+  .draftRecoverBanner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .draftRecoverBanner span {
+    min-width: auto;
+  }
+  .draftRecoverActions {
+    justify-content: flex-end;
+  }
+  .inspectionCardHeader {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .inspectionCardSync {
+    justify-content: flex-start;
+  }
+}
