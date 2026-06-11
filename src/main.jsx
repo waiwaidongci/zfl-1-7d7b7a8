@@ -1,15 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { CalendarDays, Clock, CheckCircle2, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, User, Heart } from 'lucide-react';
+import { CalendarDays, Clock, CheckCircle2, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, User, Heart, Map, Bug } from 'lucide-react';
 import './styles.css';
 
 import {
   seedBeds, seedHarvests, seedTasks, seedSchedules, seedContacts,
   seedPlants, seedMaterials, seedTransactions, iso, getWeekday
 } from './data/seedData';
+import { seedInspections, bedPlacementSeed } from './data/inspectionData';
 import { useStoredState } from './hooks/useStoredState';
 import { DistributionTab } from './components/DistributionTab';
 import { DistributionModal } from './components/DistributionModal';
+import { FloorPlanTab } from './components/FloorPlanTab';
+import { InspectionTab } from './components/InspectionTab';
 import {
   DISTRIBUTION_TYPES,
   PICKUP_CONFIRM_OVERDUE_DAYS,
@@ -25,6 +28,7 @@ import {
   getAllWarnings
 } from './utils/distribution';
 
+
 const today = new Date();
 
 function App() {
@@ -37,6 +41,8 @@ function App() {
   const [plants, setPlants] = useStoredState('zfl-1-plants', seedPlants);
   const [materials, setMaterials] = useStoredState('zfl-1-materials', seedMaterials);
   const [transactions, setTransactions] = useStoredState('zfl-1-transactions', seedTransactions);
+  const [inspections, setInspections] = useStoredState('zfl-1-inspections', seedInspections);
+  const [bedPlacement, setBedPlacement] = useStoredState('zfl-1-bedPlacement', bedPlacementSeed);
   const [query, setQuery] = useState('');
   const [contactQuery, setContactQuery] = useState('');
   const [contactTypeFilter, setContactTypeFilter] = useState('');
@@ -576,6 +582,12 @@ function App() {
         </button>
         <button className={activeTab === 'distribution' ? 'tab active' : 'tab'} onClick={() => setActiveTab('distribution')}>
           <Package size={16} />采收分配
+        </button>
+        <button className={activeTab === 'floorPlan' ? 'tab active' : 'tab'} onClick={() => setActiveTab('floorPlan')}>
+          <Map size={16} />屋顶平面图
+        </button>
+        <button className={activeTab === 'inspection' ? 'tab active' : 'tab'} onClick={() => setActiveTab('inspection')}>
+          <Bug size={16} />巡检记录
         </button>
       </nav>
 
@@ -1446,6 +1458,35 @@ function App() {
           harvestForm={harvestForm}
           setHarvestForm={setHarvestForm}
           addHarvest={addHarvest}
+        />
+      )}
+
+      {activeTab === 'floorPlan' && (
+        <FloorPlanTab
+          beds={beds}
+          setBeds={setBeds}
+          bedPlacement={bedPlacement}
+          setBedPlacement={setBedPlacement}
+          plants={plants}
+          contacts={contacts}
+          harvests={harvests}
+          transactions={transactions}
+          tasks={tasks}
+          inspections={inspections}
+          onAddInspection={(bedName) => {
+            setActiveTab('inspection');
+          }}
+        />
+      )}
+
+      {activeTab === 'inspection' && (
+        <InspectionTab
+          inspections={inspections}
+          setInspections={setInspections}
+          beds={beds}
+          tasks={tasks}
+          setTasks={setTasks}
+          setBeds={setBeds}
         />
       )}
 
