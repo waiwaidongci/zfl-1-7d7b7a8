@@ -124,7 +124,7 @@ export const getPickupStatus = (harvest) => {
   if (dist?.selfPickupConfirmedAt) {
     return { key: 'confirmed', label: '已取菜', isOverdue: false, confirmedAt: dist.selfPickupConfirmedAt };
   }
-  const baseDate = dist.distributionUpdatedAt || harvest.date;
+  const baseDate = dist.distributionUpdatedAt || harvest.distributionUpdatedAt || harvest.date;
   const pickupDate = new Date(baseDate);
   const today = new Date();
   today.setHours(0, 0, 0, 0);

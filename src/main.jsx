@@ -82,7 +82,10 @@ function App() {
 
   const saveDistributionFromDashboard = (harvestId, distribution) => {
     setHarvests(harvests.map((h) =>
-      h.id === harvestId ? { ...h, distribution, distributionUpdatedAt: iso(0) } : h
+      h.id === harvestId ? {
+        ...h,
+        distribution: distribution ? { ...distribution, distributionUpdatedAt: iso(0) } : null
+      } : h
     ));
     setDistEditingHarvest(null);
   };

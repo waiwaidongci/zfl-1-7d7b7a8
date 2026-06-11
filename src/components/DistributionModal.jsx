@@ -57,18 +57,23 @@ export function DistributionModal({ harvest, onClose, onSave, onConfirmPickup })
   const progress = totalGrams > 0 ? Math.min(100, (distributedGrams / totalGrams) * 100) : 0;
 
   const selfPickupGrams = useMemo(() => getSelfPickupGrams(form), [form]);
+  const pendingConfirmedAt = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const isAddingSelfPickup = selfPickupGrams > 0 && !harvest?.distribution?.selfPickup;
+  const displayedConfirmedAt = selfPickupConfirmed
+    ? harvest?.distribution?.selfPickupConfirmedAt || pendingConfirmedAt
+    : '';
   const pickupStatus = useMemo(() => {
     if (!harvest) return { key: 'none' };
     const fakeHarvest = {
       ...harvest,
       distribution: {
         ...form,
-        selfPickupConfirmedAt: selfPickupConfirmed ? harvest?.distribution?.selfPickupConfirmedAt || new Date().toISOString().slice(0, 10) : undefined,
-        distributionUpdatedAt: harvest?.distribution?.distributionUpdatedAt
+        selfPickupConfirmedAt: displayedConfirmedAt || undefined,
+        distributionUpdatedAt: harvest?.distribution?.distributionUpdatedAt || harvest?.distributionUpdatedAt || (isAddingSelfPickup ? pendingConfirmedAt : undefined)
       }
     };
     return getPickupStatus(fakeHarvest);
-  }, [harvest, form, selfPickupConfirmed]);
+  }, [harvest, form, displayedConfirmedAt, isAddingSelfPickup, pendingConfirmedAt]);
 
   const handleChange = (key, value) => {
     setForm({ ...form, [key]: value });
@@ -86,7 +91,7 @@ export function DistributionModal({ harvest, onClose, onSave, onConfirmPickup })
       if (v) cleaned[t.key] = v;
     }
     if (selfPickupConfirmed && selfPickupGrams > 0) {
-      cleaned.selfPickupConfirmedAt = harvest?.distribution?.selfPickupConfirmedAt || new Date().toISOString().slice(0, 10);
+      cleaned.selfPickupConfirmedAt = displayedConfirmedAt;
     }
     onSave(Object.keys(cleaned).length > 0 ? cleaned : null);
   };
@@ -180,7 +185,7 @@ export function DistributionModal({ harvest, onClose, onSave, onConfirmPickup })
                           <strong style={{ color: '#3d7a2c' }}>已确认取菜</strong>
                           <span className="pickupConfirmDate">
                             <CalendarDays size={12} />
-                            确认时间：{harvest?.distribution?.selfPickupConfirmedAt}
+                            确认时间：{displayedConfirmedAt}
                           </span>
                         </div>
                       </>
