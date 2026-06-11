@@ -521,6 +521,15 @@ function App() {
     event.preventDefault();
     if (!editingMaterialForm.name.trim() || !editingMaterialForm.unit.trim()) return;
     setMaterials(materials.map((m) => m.id === editingMaterialId ? { ...m, ...editingMaterialForm } : m));
+    setTransactions(transactions.map((t) => {
+      if (t.materialId !== editingMaterialId) return t;
+      return {
+        ...t,
+        materialName: editingMaterialForm.name,
+        category: editingMaterialForm.category,
+        unit: editingMaterialForm.unit
+      };
+    }));
     setEditingMaterialId('');
   };
 
@@ -572,6 +581,11 @@ function App() {
     setActiveTab('inventory');
   };
 
+  const getMaterialInfo = (materialId) => {
+    const m = materials.find((x) => x.id === materialId);
+    return m ? { name: m.name, category: m.category, unit: m.unit } : null;
+  };
+
   return (
     <main>
       <header className="hero">
@@ -618,11 +632,14 @@ function App() {
                   <p className="row" style={{ margin: 0 }}><Wheat size={16} />{item.crop}{item.weight}<span>{item.date}</span></p>
                   {consumptionsByHarvestId[item.id] && consumptionsByHarvestId[item.id].length > 0 && (
                     <div className="taskConsumptions">
-                      {consumptionsByHarvestId[item.id].map((c) => (
+                      {consumptionsByHarvestId[item.id].map((c) => {
+                        const info = getMaterialInfo(c.materialId);
+                        return (
                         <span key={c.id} className="miniConsumeTag">
-                          <Package size={12} />{c.materialName} -{c.quantity}{c.unit}
+                          <Package size={12} />{info ? info.name : c.materialName} -{c.quantity}{info ? info.unit : c.unit}
                         </span>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                   <button type="button" className="miniBtn" onClick={() => quickConsumeForHarvest(item.id, `${item.crop} ${item.weight}`)}>
@@ -673,11 +690,14 @@ function App() {
                       <div className="bedMaterials">
                         <span className="bedMaterialsLabel"><Package size={12} />近期用资：</span>
                         <div className="bedMaterialTags">
-                          {consumptionsByBedName[bed.name].slice(0, 3).map((c) => (
+                          {consumptionsByBedName[bed.name].slice(0, 3).map((c) => {
+                            const info = getMaterialInfo(c.materialId);
+                            return (
                             <span key={c.id} className="miniConsumeTag">
-                              {c.materialName} -{c.quantity}{c.unit}
+                              {info ? info.name : c.materialName} -{c.quantity}{info ? info.unit : c.unit}
                             </span>
-                          ))}
+                            );
+                          })}
                           {consumptionsByBedName[bed.name].length > 3 && (
                             <span className="miniConsumeTag more">+{consumptionsByBedName[bed.name].length - 3}</span>
                           )}
@@ -722,11 +742,14 @@ function App() {
                   </label>
                   {consumptionsByTaskId[task.id] && consumptionsByTaskId[task.id].length > 0 && (
                     <div className="taskConsumptions">
-                      {consumptionsByTaskId[task.id].map((c) => (
+                      {consumptionsByTaskId[task.id].map((c) => {
+                        const info = getMaterialInfo(c.materialId);
+                        return (
                         <span key={c.id} className="miniConsumeTag">
-                          <Package size={12} />{c.materialName} -{c.quantity}{c.unit}
+                          <Package size={12} />{info ? info.name : c.materialName} -{c.quantity}{info ? info.unit : c.unit}
                         </span>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                   <button type="button" className="miniBtn" onClick={() => quickConsumeForTask(task.id, task.title)}>
@@ -1330,7 +1353,12 @@ function App() {
                     <p className="muted">入库或消耗后将在此展示</p>
                   </div>
                 ) : (
-                  filteredTransactions.map((t) => (
+                  filteredTransactions.map((t) => {
+                    const info = getMaterialInfo(t.materialId);
+                    const displayName = info ? info.name : t.materialName;
+                    const displayCategory = info ? info.category : t.category;
+                    const displayUnit = info ? info.unit : t.unit;
+                    return (
                     <article className="transactionCard" key={t.id}>
                       <div className="transactionHeader">
                         <div className="transactionMeta">
@@ -1338,8 +1366,8 @@ function App() {
                             {t.type === 'inbound' ? <ArrowDownCircle size={14} /> : <ArrowUpCircle size={14} />}
                             {t.type === 'inbound' ? '入库' : '消耗'}
                           </span>
-                          <strong className="transactionMaterial">{t.materialName}</strong>
-                          <span className={`categoryTag ${t.category}`}>{t.category}</span>
+                          <strong className="transactionMaterial">{displayName}</strong>
+                          <span className={`categoryTag ${displayCategory}`}>{displayCategory}</span>
                         </div>
                         <div className="transactionActions">
                           <span className="transactionDate">{t.date}</span>
@@ -1351,7 +1379,7 @@ function App() {
                       <div className="transactionBody">
                         <div className="transactionDetail">
                           <span className={`transactionQty ${t.type}`}>
-                            {t.type === 'inbound' ? '+' : '-'}{t.quantity} {t.unit}
+                            {t.type === 'inbound' ? '+' : '-'}{t.quantity} {displayUnit}
                           </span>
                           {t.relatedType && (
                             <span className="transactionRelated">
@@ -1362,7 +1390,8 @@ function App() {
                         {t.note && <p className="transactionNote">📝 {t.note}</p>}
                       </div>
                     </article>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
