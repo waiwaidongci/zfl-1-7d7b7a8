@@ -17,7 +17,8 @@ import {
 const DRAFT_KEY = 'zfl-1-inspection-draft';
 
 export function InspectionTab({
-  inspections, setInspections, beds, tasks, setTasks, setBeds
+  inspections, setInspections, beds, tasks, setTasks, setBeds,
+  prefillBedId, onPrefillConsumed
 }) {
   const [form, setForm] = useState({
     bedId: '',
@@ -30,6 +31,22 @@ export function InspectionTab({
     date: iso(0),
     time: new Date().toTimeString().slice(0, 5)
   });
+
+  useEffect(() => {
+    if (prefillBedId) {
+      const bed = beds.find(b => b.id === prefillBedId);
+      if (bed) {
+        setForm(prev => ({
+          ...prev,
+          bedId: bed.id,
+          bedName: bed.name
+        }));
+      }
+      if (onPrefillConsumed) {
+        onPrefillConsumed();
+      }
+    }
+  }, [prefillBedId, beds, onPrefillConsumed]);
 
   const [statusFilter, setStatusFilter] = useState('');
   const [abnormalFilter, setAbnormalFilter] = useState('');

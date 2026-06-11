@@ -43,6 +43,7 @@ function App() {
   const [transactions, setTransactions] = useStoredState('zfl-1-transactions', seedTransactions);
   const [inspections, setInspections] = useStoredState('zfl-1-inspections', seedInspections);
   const [bedPlacement, setBedPlacement] = useStoredState('zfl-1-bedPlacement', bedPlacementSeed);
+  const [prefillBedId, setPrefillBedId] = useState('');
   const [query, setQuery] = useState('');
   const [contactQuery, setContactQuery] = useState('');
   const [contactTypeFilter, setContactTypeFilter] = useState('');
@@ -1473,7 +1474,10 @@ function App() {
           transactions={transactions}
           tasks={tasks}
           inspections={inspections}
-          onAddInspection={(bedName) => {
+          onAddInspection={(bed) => {
+            if (bed && bed.id) {
+              setPrefillBedId(bed.id);
+            }
             setActiveTab('inspection');
           }}
         />
@@ -1487,6 +1491,8 @@ function App() {
           tasks={tasks}
           setTasks={setTasks}
           setBeds={setBeds}
+          prefillBedId={prefillBedId}
+          onPrefillConsumed={() => setPrefillBedId('')}
         />
       )}
 
