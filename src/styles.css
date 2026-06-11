@@ -284,4 +284,92 @@ textarea { width: 100%; border: 1px solid #cdd8c3; border-radius: 8px; padding: 
 .bedFeeTag.待缴费 { background: #f5ecd8; color: #8a6a2c; }
 .bedFeeTag.欠费 { background: #fbe3e3; color: #8a2c2c; }
 
-@media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } .toolbarActions { width: 100%; flex-direction: column; } .filterSelect { width: 100%; } .contactHeader { flex-direction: column; align-items: start; gap: 8px; } .plantDates { justify-content: space-between; } .stockRow { grid-template-columns: repeat(2, 1fr); } .warningCards { grid-template-columns: 1fr; } .transactionMeta { flex-direction: column; align-items: start; } .transactionHeader { flex-direction: column; align-items: start; gap: 8px; } .inventoryActions { flex-wrap: wrap; } .editFormActions { flex-direction: column; } .feeDetailRow { grid-template-columns: 1fr; } .feeHeader { flex-direction: column; align-items: start; } .feeActions { flex-wrap: wrap; } .feeSummaryBar { flex-direction: column; gap: 8px; } .feeExpiryCards { grid-template-columns: 1fr; } .feeExpiryCard { flex-direction: column; align-items: start; } .feeExpiryMeta { flex-direction: row; align-items: center; } }
+.envSensorCard { display: flex; flex-direction: column; gap: 12px; }
+.envSensorHeader { display: flex; align-items: center; gap: 12px; }
+.envSensorIcon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.envSensorIcon.temp { background: #fde8e8; color: #c0392b; }
+.envSensorIcon.humidity { background: #e3f0fb; color: #2c5f8a; }
+.envSensorIcon.light { background: #fef6e4; color: #b8860b; }
+.envSensorIcon.water { background: #e3f0fb; color: #2c5f8a; }
+.envSensorInfo { flex: 1; min-width: 0; }
+.envSensorInfo h2 { margin: 0; font-size: 14px; color: #71806a; font-weight: normal; }
+.envSensorValue { font-size: 32px; font-weight: 600; color: #243222; line-height: 1.2; }
+.envUnit { font-size: 16px; color: #71806a; font-weight: normal; margin-left: 2px; }
+.envTrend { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; }
+.envTrend.up { background: #e8f5e3; color: #3d7a2c; }
+.envTrend.down { background: #fbe3e3; color: #8a2c2c; }
+.envTrend.stable { background: #eef5e9; color: #5f7648; font-size: 24px; }
+.stableDot { font-size: 24px; line-height: 1; }
+.envSensorStatus { display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px dashed #dfe7d7; }
+.statusTag { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; }
+.statusTag.normal { background: #e8f5e3; color: #3d7a2c; }
+.statusTag.warning { background: #fbe3e3; color: #8a2c2c; }
+.statusTag.critical { background: #fbe3e3; color: #8a2c2c; font-weight: 600; }
+.envRange { font-size: 12px; color: #87917f; }
+
+.envWaterSection { margin-top: 16px; }
+.envWaterCard { background: #fff; border: 1px solid #dfe7d7; border-radius: 8px; padding: 20px; box-shadow: 0 8px 26px rgb(44 61 34 / .07); }
+.envWaterHeader { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+.envWaterInfo { flex: 1; }
+.envWaterInfo h2 { margin: 0; font-size: 16px; color: #71806a; font-weight: normal; }
+.envWaterValue { font-size: 48px; font-weight: 600; color: #243222; line-height: 1.1; }
+.envWaterBarWrap { height: 24px; background: #eef2eb; border-radius: 12px; overflow: hidden; margin-bottom: 12px; }
+.envWaterBar { height: 100%; background: linear-gradient(90deg, #3d7a2c, #6c8b42); border-radius: 12px; transition: width .5s ease; }
+.envWaterBar.low { background: linear-gradient(90deg, #8b3f23, #c9764d); }
+.envWaterStatus { display: flex; justify-content: space-between; align-items: center; }
+
+.thresholdList { display: flex; flex-direction: column; gap: 12px; }
+.thresholdItem { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: #f8faf5; border-radius: 8px; }
+.thresholdIcon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.thresholdIcon.temp { background: #fde8e8; color: #c0392b; }
+.thresholdIcon.humidity { background: #e3f0fb; color: #2c5f8a; }
+.thresholdIcon.light { background: #fef6e4; color: #b8860b; }
+.thresholdIcon.water { background: #e3f0fb; color: #2c5f8a; }
+.thresholdInfo { display: flex; flex-direction: column; gap: 2px; }
+.thresholdInfo strong { font-size: 14px; color: #243222; }
+.thresholdInfo span { font-size: 13px; color: #71806a; }
+
+.trendCharts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.trendChart { background: #f8faf5; border-radius: 8px; padding: 16px; }
+.trendChartHeader { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 14px; color: #55624e; font-weight: 500; }
+.chartBars { display: flex; align-items: flex-end; gap: 8px; height: 120px; padding-top: 10px; }
+.chartBarWrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; }
+.chartBar { width: 100%; min-height: 4px; border-radius: 4px 4px 0 0; position: relative; transition: height .3s ease; display: flex; justify-content: center; align-items: flex-start; }
+.chartBar.temp { background: linear-gradient(180deg, #e74c3c, #f39c12); }
+.chartBar.humidity { background: linear-gradient(180deg, #3498db, #2980b9); }
+.chartBar.light { background: linear-gradient(180deg, #f1c40f, #f39c12); }
+.chartBar.water { background: linear-gradient(180deg, #27ae60, #2ecc71); }
+.chartBar.water.low { background: linear-gradient(180deg, #e74c3c, #c0392b); }
+.chartBarValue { font-size: 11px; color: #fff; font-weight: 500; padding-top: 4px; text-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.chartBarLabel { font-size: 11px; color: #87917f; }
+
+.envAlertSection { background: #fff; border: 1px solid #e8c9bc; border-radius: 8px; padding: 18px; margin-top: 16px; box-shadow: 0 8px 26px rgb(44 61 34 / .07); }
+.envAlertSection h2 { color: #8b3f23; margin-bottom: 14px; }
+.envAlertCards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.envAlertCard { display: flex; gap: 12px; padding: 14px; border-radius: 8px; background: #fbeae2; border: 1px solid #e8c9bc; }
+.envAlertCard.critical { background: #fde0e0; border-color: #e8a0a0; }
+.envAlertIcon { color: #8b3f23; flex-shrink: 0; margin-top: 2px; }
+.envAlertCard.critical .envAlertIcon { color: #c0392b; }
+.envAlertContent { flex: 1; min-width: 0; }
+.envAlertContent strong { display: block; color: #6b2f15; font-size: 15px; margin-bottom: 4px; }
+.envAlertCard.critical .envAlertContent strong { color: #8b2323; }
+.envAlertContent p { margin: 0; color: #8b5a40; font-size: 13px; line-height: 1.5; }
+.envAlertCard.critical .envAlertContent p { color: #9b3b3b; }
+
+.modalOverlay { position: fixed; inset: 0; background: rgba(0, 0, 0, .5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+.modalContent { background: #fff; border-radius: 12px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0, 0, 0, .3); }
+.modalHeader { display: flex; justify-content: space-between; align-items: center; padding: 18px 20px; border-bottom: 1px solid #eef2eb; }
+.modalHeader h2 { margin: 0; font-size: 18px; }
+.closeBtn { background: none; border: 0; font-size: 24px; color: #71806a; cursor: pointer; padding: 0 8px; line-height: 1; }
+.closeBtn:hover { color: #243222; }
+.modalBody { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.thresholdFormGroup { display: flex; flex-direction: column; gap: 8px; }
+.thresholdFormGroup label { display: flex; align-items: center; gap: 8px; font-weight: 500; color: #3c4d38; font-size: 14px; }
+.fieldLabel { display: block; font-size: 12px; color: #71806a; margin-bottom: 4px; }
+.modalActions { display: flex; gap: 10px; margin-top: 8px; }
+.modalActions button { flex: 1; }
+
+.row.alert.critical { color: #c0392b; font-weight: 500; }
+.row.alert.critical span { color: #9b3b3b; }
+
+@media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } .toolbarActions { width: 100%; flex-direction: column; } .filterSelect { width: 100%; } .contactHeader { flex-direction: column; align-items: start; gap: 8px; } .plantDates { justify-content: space-between; } .stockRow { grid-template-columns: repeat(2, 1fr); } .warningCards { grid-template-columns: 1fr; } .transactionMeta { flex-direction: column; align-items: start; } .transactionHeader { flex-direction: column; align-items: start; gap: 8px; } .inventoryActions { flex-wrap: wrap; } .editFormActions { flex-direction: column; } .feeDetailRow { grid-template-columns: 1fr; } .feeHeader { flex-direction: column; align-items: start; } .feeActions { flex-wrap: wrap; } .feeSummaryBar { flex-direction: column; gap: 8px; } .feeExpiryCards { grid-template-columns: 1fr; } .feeExpiryCard { flex-direction: column; align-items: start; } .feeExpiryMeta { flex-direction: row; align-items: center; } .trendCharts { grid-template-columns: 1fr; } .envWaterValue { font-size: 36px; } .envSensorValue { font-size: 28px; } }

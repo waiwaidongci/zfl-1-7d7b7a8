@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { CalendarDays, Clock, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, Wallet, Heart, CircleDollarSign, Timer, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { CalendarDays, Clock, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, Wallet, Heart, CircleDollarSign, Timer, CheckCircle2, XCircle, AlertTriangle, Thermometer, Sun, Gauge, Settings, TrendingUp, TrendingDown } from 'lucide-react';
 import './styles.css';
 
 const today = new Date();
@@ -79,6 +79,45 @@ const seedFees = [
   { id: crypto.randomUUID(), bedId: seedBeds[1].id, bedName: 'B07番茄试验畦', adopter: '周原', startDate: iso(-180), endDate: iso(-90), amount: 800, paymentStatus: '欠费', donationNote: '上一周期欠费，需催缴' }
 ];
 
+const seedEnvThresholds = {
+  temperature: { min: 10, max: 35, unit: '°C' },
+  humidity: { min: 40, max: 85, unit: '%' },
+  light: { min: 2000, max: 50000, unit: 'lux' },
+  water: { min: 20, max: 100, unit: '%' }
+};
+
+const generateEnvHistory = () => {
+  const history = [];
+  for (let i = 6; i >= 0; i--) {
+    const date = iso(-i);
+    const baseTemp = 22 + Math.sin(i * 0.8) * 5;
+    const baseHumidity = 65 + Math.cos(i * 0.6) * 10;
+    const baseLight = 25000 + Math.sin(i * 0.5) * 10000;
+    const baseWater = 70 - i * 3 + Math.random() * 5;
+    history.push({
+      date,
+      temperature: Math.round((baseTemp + (Math.random() - 0.5) * 4) * 10) / 10,
+      humidity: Math.round((baseHumidity + (Math.random() - 0.5) * 8) * 10) / 10,
+      light: Math.round(baseLight + (Math.random() - 0.5) * 5000),
+      water: Math.round(Math.max(15, Math.min(95, baseWater)) * 10) / 10
+    });
+  }
+  return history;
+};
+
+const seedEnvHistory = generateEnvHistory();
+
+const getCurrentEnvData = (history) => {
+  if (!history || history.length === 0) return null;
+  const latest = history[history.length - 1];
+  return {
+    temperature: latest.temperature,
+    humidity: latest.humidity,
+    light: latest.light,
+    water: latest.water
+  };
+};
+
 function useStoredState(key, initialValue) {
   const [value, setValue] = useState(() => {
     const raw = localStorage.getItem(key);
@@ -125,6 +164,10 @@ function App() {
   const [feeForm, setFeeForm] = useState({ bedId: '', bedName: '', adopter: '', startDate: iso(-30), endDate: iso(335), amount: '', paymentStatus: '待缴费', donationNote: '' });
   const [feeQuery, setFeeQuery] = useState('');
   const [feeStatusFilter, setFeeStatusFilter] = useState('');
+  const [envThresholds, setEnvThresholds] = useStoredState('zfl-1-env-thresholds', seedEnvThresholds);
+  const [envHistory, setEnvHistory] = useStoredState('zfl-1-env-history', seedEnvHistory);
+  const [showThresholdConfig, setShowThresholdConfig] = useState(false);
+  const [thresholdForm, setThresholdForm] = useState(seedEnvThresholds);
 
   const weekWater = beds.filter((bed) => {
     const days = (new Date(bed.nextWater) - today) / 86400000;
@@ -133,6 +176,53 @@ function App() {
   const filteredBeds = beds.filter((bed) => `${bed.name}${bed.crop}${bed.adopter}${bed.phone}`.includes(query.trim()));
   const activeCount = beds.filter((bed) => bed.status === '认养中').length;
   const warnings = beds.filter((bed) => bed.warning);
+
+  const currentEnv = useMemo(() => getCurrentEnvData(envHistory), [envHistory]);
+
+  const envAlerts = useMemo(() => {
+    if (!currentEnv) return [];
+    const alerts = [];
+    const sensorNames = {
+      temperature: '温度',
+      humidity: '湿度',
+      light: '光照强度',
+      water: '水箱余量'
+    };
+    Object.keys(envThresholds).forEach((key) => {
+      const threshold = envThresholds[key];
+      const value = currentEnv[key];
+      if (value < threshold.min) {
+        alerts.push({
+          id: `env-${key}-low`,
+          type: 'env',
+          sensor: key,
+          sensorName: sensorNames[key],
+          level: key === 'water' ? 'critical' : 'warning',
+          message: `${sensorNames[key]}过低：${value}${threshold.unit}（最低阈值：${threshold.min}${threshold.unit}）`
+        });
+      } else if (value > threshold.max) {
+        alerts.push({
+          id: `env-${key}-high`,
+          type: 'env',
+          sensor: key,
+          sensorName: sensorNames[key],
+          level: 'warning',
+          message: `${sensorNames[key]}过高：${value}${threshold.unit}（最高阈值：${threshold.max}${threshold.unit}）`
+        });
+      }
+    });
+    return alerts;
+  }, [currentEnv, envThresholds]);
+
+  const allWarnings = useMemo(() => {
+    const bedWarnings = warnings.map((bed) => ({
+      id: `bed-${bed.id}`,
+      type: 'bed',
+      name: bed.name,
+      message: bed.warning
+    }));
+    return [...bedWarnings, ...envAlerts];
+  }, [warnings, envAlerts]);
 
   const addBed = (event) => {
     event.preventDefault();
@@ -681,6 +771,57 @@ function App() {
     return `还剩${diff}天`;
   };
 
+  const openThresholdConfig = () => {
+    setThresholdForm(JSON.parse(JSON.stringify(envThresholds)));
+    setShowThresholdConfig(true);
+  };
+
+  const saveThresholds = (event) => {
+    event.preventDefault();
+    setEnvThresholds(thresholdForm);
+    setShowThresholdConfig(false);
+  };
+
+  const updateThreshold = (sensor, field, value) => {
+    setThresholdForm({
+      ...thresholdForm,
+      [sensor]: {
+        ...thresholdForm[sensor],
+        [field]: Number(value)
+      }
+    });
+  };
+
+  const isEnvNormal = (sensor) => {
+    if (!currentEnv) return true;
+    const threshold = envThresholds[sensor];
+    const value = currentEnv[sensor];
+    return value >= threshold.min && value <= threshold.max;
+  };
+
+  const getEnvTrend = (sensor) => {
+    if (!envHistory || envHistory.length < 2) return 'stable';
+    const recent = envHistory.slice(-3);
+    const first = recent[0][sensor];
+    const last = recent[recent.length - 1][sensor];
+    const diff = last - first;
+    if (Math.abs(diff) < 0.01 * Math.abs(first)) return 'stable';
+    return diff > 0 ? 'up' : 'down';
+  };
+
+  const getChartData = (sensor) => {
+    if (!envHistory || envHistory.length === 0) return [];
+    const values = envHistory.map((h) => h[sensor]);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+    return envHistory.map((h) => ({
+      date: h.date,
+      value: h[sensor],
+      percent: ((h[sensor] - min) / range) * 100
+    }));
+  };
+
   return (
     <main>
       <header className="hero">
@@ -693,7 +834,7 @@ function App() {
           <span><Droplets size={18} />{weekWater.length}块本周浇水</span>
           <span><Timer size={18} />{feeStats.expiringCount}笔即将到期</span>
           <span><XCircle size={18} />{feeStats.overdueCount}笔欠费</span>
-          <span><TriangleAlert size={18} />{warnings.length}条异常</span>
+          <span><TriangleAlert size={18} />{allWarnings.length}条异常</span>
         </div>
       </header>
 
@@ -715,6 +856,9 @@ function App() {
         </button>
         <button className={activeTab === 'fees' ? 'tab active' : 'tab'} onClick={() => setActiveTab('fees')}>
           <Wallet size={16} />费用管理
+        </button>
+        <button className={activeTab === 'environment' ? 'tab active' : 'tab'} onClick={() => setActiveTab('environment')}>
+          <Gauge size={16} />环境监测
         </button>
       </nav>
 
@@ -750,7 +894,13 @@ function App() {
             </article>
             <article>
               <h2>异常提醒</h2>
-              {warnings.length ? warnings.map((bed) => <p className="row alert" key={bed.id}><TriangleAlert size={16} />{bed.name}<span>{bed.warning}</span></p>) : <p className="muted">暂无异常</p>}
+              {allWarnings.length ? allWarnings.map((w) => (
+                <p className={`row alert ${w.level === 'critical' ? 'critical' : ''}`} key={w.id}>
+                  <TriangleAlert size={16} />
+                  {w.type === 'bed' ? w.name : w.sensorName}
+                  <span>{w.type === 'bed' ? w.message : w.message}</span>
+                </p>
+              )) : <p className="muted">暂无异常</p>}
             </article>
           </section>
 
@@ -1672,6 +1822,325 @@ function App() {
             </div>
           </section>
         </>
+      )}
+
+      {activeTab === 'environment' && (
+        <>
+          <section className="dashboard">
+            <article className="envSensorCard">
+              <div className="envSensorHeader">
+                <div className="envSensorIcon temp">
+                  <Thermometer size={24} />
+                </div>
+                <div className="envSensorInfo">
+                  <h2>温度</h2>
+                  <div className="envSensorValue">
+                    {currentEnv?.temperature}<span className="envUnit">°C</span>
+                  </div>
+                </div>
+                <div className={`envTrend ${getEnvTrend('temperature')}`}>
+                  {getEnvTrend('temperature') === 'up' && <TrendingUp size={16} />}
+                  {getEnvTrend('temperature') === 'down' && <TrendingDown size={16} />}
+                  {getEnvTrend('temperature') === 'stable' && <span className="stableDot">•</span>}
+                </div>
+              </div>
+              <div className="envSensorStatus">
+                <span className={`statusTag ${isEnvNormal('temperature') ? 'normal' : 'warning'}`}>
+                  {isEnvNormal('temperature') ? '正常' : '异常'}
+                </span>
+                <span className="envRange">范围：{envThresholds.temperature.min}~{envThresholds.temperature.max}°C</span>
+              </div>
+            </article>
+
+            <article className="envSensorCard">
+              <div className="envSensorHeader">
+                <div className="envSensorIcon humidity">
+                  <Droplets size={24} />
+                </div>
+                <div className="envSensorInfo">
+                  <h2>湿度</h2>
+                  <div className="envSensorValue">
+                    {currentEnv?.humidity}<span className="envUnit">%</span>
+                  </div>
+                </div>
+                <div className={`envTrend ${getEnvTrend('humidity')}`}>
+                  {getEnvTrend('humidity') === 'up' && <TrendingUp size={16} />}
+                  {getEnvTrend('humidity') === 'down' && <TrendingDown size={16} />}
+                  {getEnvTrend('humidity') === 'stable' && <span className="stableDot">•</span>}
+                </div>
+              </div>
+              <div className="envSensorStatus">
+                <span className={`statusTag ${isEnvNormal('humidity') ? 'normal' : 'warning'}`}>
+                  {isEnvNormal('humidity') ? '正常' : '异常'}
+                </span>
+                <span className="envRange">范围：{envThresholds.humidity.min}~{envThresholds.humidity.max}%</span>
+              </div>
+            </article>
+
+            <article className="envSensorCard">
+              <div className="envSensorHeader">
+                <div className="envSensorIcon light">
+                  <Sun size={24} />
+                </div>
+                <div className="envSensorInfo">
+                  <h2>光照强度</h2>
+                  <div className="envSensorValue">
+                    {currentEnv?.light}<span className="envUnit">lux</span>
+                  </div>
+                </div>
+                <div className={`envTrend ${getEnvTrend('light')}`}>
+                  {getEnvTrend('light') === 'up' && <TrendingUp size={16} />}
+                  {getEnvTrend('light') === 'down' && <TrendingDown size={16} />}
+                  {getEnvTrend('light') === 'stable' && <span className="stableDot">•</span>}
+                </div>
+              </div>
+              <div className="envSensorStatus">
+                <span className={`statusTag ${isEnvNormal('light') ? 'normal' : 'warning'}`}>
+                  {isEnvNormal('light') ? '正常' : '异常'}
+                </span>
+                <span className="envRange">范围：{envThresholds.light.min}~{envThresholds.light.max} lux</span>
+              </div>
+            </article>
+          </section>
+
+          <section className="envWaterSection">
+            <article className="envWaterCard">
+              <div className="envWaterHeader">
+                <div className="envSensorIcon water">
+                  <Droplets size={28} />
+                </div>
+                <div className="envWaterInfo">
+                  <h2>水箱余量</h2>
+                  <div className="envWaterValue">
+                    {currentEnv?.water}<span className="envUnit">%</span>
+                  </div>
+                </div>
+                <div className={`envTrend ${getEnvTrend('water')}`}>
+                  {getEnvTrend('water') === 'up' && <TrendingUp size={18} />}
+                  {getEnvTrend('water') === 'down' && <TrendingDown size={18} />}
+                  {getEnvTrend('water') === 'stable' && <span className="stableDot">•</span>}
+                </div>
+              </div>
+              <div className="envWaterBarWrap">
+                <div className={`envWaterBar ${isEnvNormal('water') ? '' : 'low'}`} style={{ width: `${currentEnv?.water || 0}%` }} />
+              </div>
+              <div className="envWaterStatus">
+                <span className={`statusTag ${isEnvNormal('water') ? 'normal' : 'critical'}`}>
+                  {isEnvNormal('water') ? '充足' : '水量不足'}
+                </span>
+                <span className="envRange">警戒线：{envThresholds.water.min}%</span>
+              </div>
+            </article>
+          </section>
+
+          <section className="workspace">
+            <div className="panel">
+              <div className="toolbar">
+                <h2><Settings size={18} />阈值配置</h2>
+                <button type="button" className="miniBtn" onClick={openThresholdConfig}>
+                  <Settings size={12} />编辑阈值
+                </button>
+              </div>
+              <div className="thresholdList">
+                <div className="thresholdItem">
+                  <div className="thresholdIcon temp"><Thermometer size={16} /></div>
+                  <div className="thresholdInfo">
+                    <strong>温度</strong>
+                    <span>{envThresholds.temperature.min} ~ {envThresholds.temperature.max} °C</span>
+                  </div>
+                </div>
+                <div className="thresholdItem">
+                  <div className="thresholdIcon humidity"><Droplets size={16} /></div>
+                  <div className="thresholdInfo">
+                    <strong>湿度</strong>
+                    <span>{envThresholds.humidity.min} ~ {envThresholds.humidity.max} %</span>
+                  </div>
+                </div>
+                <div className="thresholdItem">
+                  <div className="thresholdIcon light"><Sun size={16} /></div>
+                  <div className="thresholdInfo">
+                    <strong>光照强度</strong>
+                    <span>{envThresholds.light.min} ~ {envThresholds.light.max} lux</span>
+                  </div>
+                </div>
+                <div className="thresholdItem">
+                  <div className="thresholdIcon water"><Gauge size={16} /></div>
+                  <div className="thresholdInfo">
+                    <strong>水箱余量</strong>
+                    <span>{envThresholds.water.min} ~ {envThresholds.water.max} %</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="panel wide">
+              <div className="toolbar">
+                <h2>近7天趋势</h2>
+              </div>
+              <div className="trendCharts">
+                <div className="trendChart">
+                  <div className="trendChartHeader">
+                    <Thermometer size={16} />
+                    <span>温度趋势 (°C)</span>
+                  </div>
+                  <div className="chartBars">
+                    {getChartData('temperature').map((d, i) => (
+                      <div className="chartBarWrap" key={i}>
+                        <div className="chartBar temp" style={{ height: `${d.percent}%` }} title={`${d.date}: ${d.value}°C`}>
+                          <span className="chartBarValue">{d.value}</span>
+                        </div>
+                        <span className="chartBarLabel">{d.date.slice(5)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="trendChart">
+                  <div className="trendChartHeader">
+                    <Droplets size={16} />
+                    <span>湿度趋势 (%)</span>
+                  </div>
+                  <div className="chartBars">
+                    {getChartData('humidity').map((d, i) => (
+                      <div className="chartBarWrap" key={i}>
+                        <div className="chartBar humidity" style={{ height: `${d.percent}%` }} title={`${d.date}: ${d.value}%`}>
+                          <span className="chartBarValue">{d.value}</span>
+                        </div>
+                        <span className="chartBarLabel">{d.date.slice(5)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="trendChart">
+                  <div className="trendChartHeader">
+                    <Sun size={16} />
+                    <span>光照趋势 (klux)</span>
+                  </div>
+                  <div className="chartBars">
+                    {getChartData('light').map((d, i) => (
+                      <div className="chartBarWrap" key={i}>
+                        <div className="chartBar light" style={{ height: `${d.percent}%` }} title={`${d.date}: ${d.value} lux`}>
+                          <span className="chartBarValue">{Math.round(d.value / 1000)}k</span>
+                        </div>
+                        <span className="chartBarLabel">{d.date.slice(5)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="trendChart">
+                  <div className="trendChartHeader">
+                    <Gauge size={16} />
+                    <span>水箱余量趋势 (%)</span>
+                  </div>
+                  <div className="chartBars">
+                    {getChartData('water').map((d, i) => (
+                      <div className="chartBarWrap" key={i}>
+                        <div className={`chartBar water ${d.value < envThresholds.water.min ? 'low' : ''}`} style={{ height: `${d.percent}%` }} title={`${d.date}: ${d.value}%`}>
+                          <span className="chartBarValue">{d.value}</span>
+                        </div>
+                        <span className="chartBarLabel">{d.date.slice(5)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {envAlerts.length > 0 && (
+            <section className="envAlertSection">
+              <h2><TriangleAlert size={18} />环境异常提醒</h2>
+              <div className="envAlertCards">
+                {envAlerts.map((alert) => (
+                  <div className={`envAlertCard ${alert.level}`} key={alert.id}>
+                    <div className="envAlertIcon">
+                      <AlertTriangle size={20} />
+                    </div>
+                    <div className="envAlertContent">
+                      <strong>{alert.sensorName}{alert.level === 'critical' ? '严重' : ''}异常</strong>
+                      <p>{alert.message}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </>
+      )}
+
+      {showThresholdConfig && (
+        <div className="modalOverlay" onClick={() => setShowThresholdConfig(false)}>
+          <div className="modalContent" onClick={(e) => e.stopPropagation()}>
+            <div className="modalHeader">
+              <h2><Settings size={18} />编辑异常阈值</h2>
+              <button className="closeBtn" onClick={() => setShowThresholdConfig(false)}>×</button>
+            </div>
+            <form onSubmit={saveThresholds} className="modalBody">
+              <div className="thresholdFormGroup">
+                <label><Thermometer size={16} /> 温度阈值 (°C)</label>
+                <div className="grid2">
+                  <div>
+                    <span className="fieldLabel">最低值</span>
+                    <input type="number" value={thresholdForm.temperature.min} onChange={(e) => updateThreshold('temperature', 'min', e.target.value)} />
+                  </div>
+                  <div>
+                    <span className="fieldLabel">最高值</span>
+                    <input type="number" value={thresholdForm.temperature.max} onChange={(e) => updateThreshold('temperature', 'max', e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="thresholdFormGroup">
+                <label><Droplets size={16} /> 湿度阈值 (%)</label>
+                <div className="grid2">
+                  <div>
+                    <span className="fieldLabel">最低值</span>
+                    <input type="number" value={thresholdForm.humidity.min} onChange={(e) => updateThreshold('humidity', 'min', e.target.value)} />
+                  </div>
+                  <div>
+                    <span className="fieldLabel">最高值</span>
+                    <input type="number" value={thresholdForm.humidity.max} onChange={(e) => updateThreshold('humidity', 'max', e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="thresholdFormGroup">
+                <label><Sun size={16} /> 光照阈值 (lux)</label>
+                <div className="grid2">
+                  <div>
+                    <span className="fieldLabel">最低值</span>
+                    <input type="number" value={thresholdForm.light.min} onChange={(e) => updateThreshold('light', 'min', e.target.value)} />
+                  </div>
+                  <div>
+                    <span className="fieldLabel">最高值</span>
+                    <input type="number" value={thresholdForm.light.max} onChange={(e) => updateThreshold('light', 'max', e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="thresholdFormGroup">
+                <label><Gauge size={16} /> 水箱余量阈值 (%)</label>
+                <div className="grid2">
+                  <div>
+                    <span className="fieldLabel">最低值</span>
+                    <input type="number" value={thresholdForm.water.min} onChange={(e) => updateThreshold('water', 'min', e.target.value)} />
+                  </div>
+                  <div>
+                    <span className="fieldLabel">最高值</span>
+                    <input type="number" value={thresholdForm.water.max} onChange={(e) => updateThreshold('water', 'max', e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="modalActions">
+                <button type="button" className="clearBtn" onClick={() => setShowThresholdConfig(false)}>取消</button>
+                <button type="submit">保存阈值</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </main>
   );
