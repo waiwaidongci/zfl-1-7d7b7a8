@@ -91,4 +91,45 @@ button { border: 0; border-radius: 8px; padding: 12px 14px; background: #2f613a;
 
 textarea { width: 100%; border: 1px solid #cdd8c3; border-radius: 8px; padding: 11px 12px; background: #fff; color: #243222; font-family: inherit; resize: vertical; }
 
-@media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } .toolbarActions { width: 100%; flex-direction: column; } .filterSelect { width: 100%; } .contactHeader { flex-direction: column; align-items: start; gap: 8px; } }
+.emptyState { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; text-align: center; color: #71806a; gap: 8px; }
+.emptyState svg { color: #b8c4ac; margin-bottom: 4px; }
+.emptyState p { margin: 0; }
+
+.harvestList { display: grid; gap: 12px; }
+.harvestCard { background: #fbfcf8; border: 1px solid #dfe7d7; border-radius: 8px; padding: 16px; }
+.harvestHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.harvestInfo { display: flex; flex-direction: column; gap: 2px; }
+.harvestInfo strong { font-size: 18px; color: #243222; }
+.harvestBed { font-size: 13px; color: #71806a; }
+.harvestCountdown { font-weight: 600; padding: 6px 12px; border-radius: 6px; background: #eef5e9; color: #3d7a2c; font-size: 14px; }
+.harvestCountdown.urgent { background: #fbe3e3; color: #8a2c2c; }
+.harvestBody { display: flex; flex-direction: column; gap: 8px; }
+.harvestNote { color: #6b7763; font-size: 14px; margin: 4px 0 0; padding-top: 8px; border-top: 1px dashed #dfe7d7; }
+
+.stageTag { display: inline-block; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; }
+.stageTag.播种期 { background: #e3f0fb; color: #2c5f8a; }
+.stageTag.发芽期 { background: #f5ecd8; color: #8a6a2c; }
+.stageTag.生长期 { background: #e8f5e3; color: #3d7a2c; }
+.stageTag.结果期 { background: #fbe3c4; color: #8a5a2c; }
+.stageTag.成熟期 { background: #fbe3e3; color: #8a2c2c; }
+
+.plantList { display: grid; gap: 12px; }
+.plantCard { background: #fbfcf8; border: 1px solid #dfe7d7; border-radius: 8px; padding: 16px; }
+.plantHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.plantInfo { display: flex; flex-direction: column; gap: 2px; }
+.plantInfo strong { font-size: 16px; color: #243222; }
+.plantCrop { font-size: 14px; color: #5f7648; }
+.plantActions { display: flex; gap: 8px; align-items: center; }
+.plantBody { display: flex; flex-direction: column; gap: 10px; }
+.plantDates { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.plantDateItem { display: flex; flex-direction: column; gap: 2px; }
+.plantDateLabel { font-size: 12px; color: #87917f; }
+.plantDateValue { font-size: 14px; color: #3c4d38; font-weight: 500; }
+.plantDateDivider { color: #b8c4ac; font-size: 18px; }
+.plantStageRow { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.plantNote { color: #6b7763; font-size: 14px; margin: 4px 0 0; padding-top: 8px; border-top: 1px dashed #dfe7d7; }
+
+.idleBedCard { border: 1px dashed #cdd8c3; background: #f8faf5; }
+.idleBedCard .listButton { margin-top: 12px; }
+
+@media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } .toolbarActions { width: 100%; flex-direction: column; } .filterSelect { width: 100%; } .contactHeader { flex-direction: column; align-items: start; gap: 8px; } .plantDates { justify-content: space-between; } }

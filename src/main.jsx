@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { CalendarDays, Clock, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat } from 'lucide-react';
+import { CalendarDays, Clock, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle } from 'lucide-react';
 import './styles.css';
 
 const today = new Date();
@@ -41,6 +41,11 @@ const seedContacts = [
   { id: crypto.randomUUID(), bedId: seedBeds[1].id, bedName: 'B07番茄试验畦', adopter: '周原', phone: '13900004567', type: '取菜通知', date: iso(-7), time: '16:45', content: '樱桃番茄成熟约500g，通知自取', note: '次日下午已取' }
 ];
 
+const seedPlants = [
+  { id: crypto.randomUUID(), bedId: seedBeds[0].id, bedName: 'A03薄荷香草畦', crop: '薄荷', sowDate: iso(-30), harvestDate: iso(10), growthStage: '生长期', note: '薄荷长势良好，注意浇水' },
+  { id: crypto.randomUUID(), bedId: seedBeds[1].id, bedName: 'B07番茄试验畦', crop: '樱桃番茄', sowDate: iso(-45), harvestDate: iso(20), growthStage: '结果期', note: '已开始挂果，注意追肥' }
+];
+
 function useStoredState(key, initialValue) {
   const [value, setValue] = useState(() => {
     const raw = localStorage.getItem(key);
@@ -61,14 +66,18 @@ function App() {
   const [tasks, setTasks] = useStoredState('zfl-1-tasks', seedTasks);
   const [schedules, setSchedules] = useStoredState('zfl-1-schedules', seedSchedules);
   const [contacts, setContacts] = useStoredState('zfl-1-contacts', seedContacts);
+  const [plants, setPlants] = useStoredState('zfl-1-plants', seedPlants);
   const [query, setQuery] = useState('');
   const [contactQuery, setContactQuery] = useState('');
   const [contactTypeFilter, setContactTypeFilter] = useState('');
   const [scheduleDateFilter, setScheduleDateFilter] = useState('');
+  const [plantQuery, setPlantQuery] = useState('');
+  const [plantFilter, setPlantFilter] = useState('');
   const [bedForm, setBedForm] = useState({ name: '', crop: '', adopter: '', phone: '', area: '', status: '认养中', nextWater: iso(2), warning: '' });
   const [harvestForm, setHarvestForm] = useState({ bed: '', crop: '', weight: '', date: iso(0), note: '' });
   const [scheduleForm, setScheduleForm] = useState({ date: iso(0), weekday: '', volunteer: '', phone: '', duty: '浇水', time: '09:00-11:00', note: '' });
   const [contactForm, setContactForm] = useState({ bedId: '', bedName: '', adopter: '', phone: '', type: '电话', date: iso(0), time: '09:00', content: '', note: '' });
+  const [plantForm, setPlantForm] = useState({ bedId: '', bedName: '', crop: '', sowDate: iso(0), harvestDate: iso(30), growthStage: '播种期', note: '' });
 
   const weekWater = beds.filter((bed) => {
     const days = (new Date(bed.nextWater) - today) / 86400000;
@@ -201,6 +210,102 @@ function App() {
     return { total: thisWeek.length, byDuty };
   }, [schedules]);
 
+  const calculateGrowthStage = (sowDate, harvestDate) => {
+    const sow = new Date(sowDate);
+    const harvest = new Date(harvestDate);
+    const now = new Date();
+    const totalDays = (harvest - sow) / 86400000;
+    const elapsedDays = (now - sow) / 86400000;
+    const progress = Math.max(0, Math.min(1, elapsedDays / totalDays));
+
+    if (progress < 0.15) return '播种期';
+    if (progress < 0.35) return '发芽期';
+    if (progress < 0.65) return '生长期';
+    if (progress < 0.9) return '结果期';
+    return '成熟期';
+  };
+
+  const plantBedOptions = useMemo(() => {
+    const usedBedIds = plants.map((p) => p.bedId);
+    return beds.filter((bed) => !usedBedIds.includes(bed.id)).map((bed) => ({ id: bed.id, name: bed.name, status: bed.status }));
+  }, [beds, plants]);
+
+  const upcomingHarvests = useMemo(() => {
+    const thirtyDaysLater = new Date(today);
+    thirtyDaysLater.setDate(today.getDate() + 30);
+    return plants.filter((p) => {
+      const harvest = new Date(p.harvestDate);
+      return harvest >= today && harvest <= thirtyDaysLater;
+    }).sort((a, b) => new Date(a.harvestDate) - new Date(b.harvestDate));
+  }, [plants]);
+
+  const idleBeds = useMemo(() => {
+    const usedBedIds = plants.map((p) => p.bedId);
+    return beds.filter((bed) => !usedBedIds.includes(bed.id));
+  }, [beds, plants]);
+
+  const filteredPlants = useMemo(() => {
+    let result = [...plants];
+    if (plantQuery.trim()) {
+      const q = plantQuery.trim();
+      result = result.filter((p) => `${p.bedName}${p.crop}${p.growthStage}${p.note}`.includes(q));
+    }
+    if (plantFilter) {
+      result = result.filter((p) => p.growthStage === plantFilter);
+    }
+    return result.sort((a, b) => new Date(a.harvestDate) - new Date(b.harvestDate));
+  }, [plants, plantQuery, plantFilter]);
+
+  const plantStats = useMemo(() => {
+    const byStage = plants.reduce((acc, p) => {
+      acc[p.growthStage] = (acc[p.growthStage] || 0) + 1;
+      return acc;
+    }, {});
+    return { total: plants.length, upcoming: upcomingHarvests.length, idle: idleBeds.length, byStage };
+  }, [plants, upcomingHarvests, idleBeds]);
+
+  const selectPlantBed = (bedId) => {
+    const bed = beds.find((b) => b.id === bedId);
+    if (bed) {
+      setPlantForm({ ...plantForm, bedId: bed.id, bedName: bed.name, crop: bed.crop === '待播种' ? '' : bed.crop });
+    } else {
+      setPlantForm({ ...plantForm, bedId: '', bedName: '', crop: '' });
+    }
+  };
+
+  const addPlant = (event) => {
+    event.preventDefault();
+    if (!plantForm.bedId || !plantForm.crop.trim()) return;
+    const stage = plantForm.growthStage === '自动计算'
+      ? calculateGrowthStage(plantForm.sowDate, plantForm.harvestDate)
+      : plantForm.growthStage;
+    setPlants([{ id: crypto.randomUUID(), ...plantForm, growthStage: stage }, ...plants]);
+    setPlantForm({ bedId: '', bedName: '', crop: '', sowDate: iso(0), harvestDate: iso(30), growthStage: '播种期', note: '' });
+  };
+
+  const deletePlant = (id) => {
+    setPlants(plants.filter((p) => p.id !== id));
+  };
+
+  const updatePlantGrowthStage = (id) => {
+    setPlants(plants.map((p) => {
+      if (p.id === id) {
+        const newStage = calculateGrowthStage(p.sowDate, p.harvestDate);
+        return { ...p, growthStage: newStage };
+      }
+      return p;
+    }));
+  };
+
+  const getDaysUntilHarvest = (harvestDate) => {
+    const harvest = new Date(harvestDate);
+    const now = new Date();
+    const diff = Math.ceil((harvest - now) / 86400000);
+    if (diff < 0) return `已过${Math.abs(diff)}天`;
+    if (diff === 0) return '今天';
+    return `还有${diff}天`;
+  };
+
   return (
     <main>
       <header className="hero">
@@ -218,6 +323,9 @@ function App() {
       <nav className="tabs">
         <button className={activeTab === 'dashboard' ? 'tab active' : 'tab'} onClick={() => setActiveTab('dashboard')}>
           <Leaf size={16} />菜园总览
+        </button>
+        <button className={activeTab === 'plants' ? 'tab active' : 'tab'} onClick={() => setActiveTab('plants')}>
+          <Sprout size={16} />种植计划
         </button>
         <button className={activeTab === 'contacts' ? 'tab active' : 'tab'} onClick={() => setActiveTab('contacts')}>
           <MessageCircle size={16} />联系记录
@@ -314,6 +422,195 @@ function App() {
               ))}
             </div>
           </section>
+        </>
+      )}
+
+      {activeTab === 'plants' && (
+        <>
+          <section className="dashboard">
+            <article>
+              <h2>总种植计划</h2>
+              <p className="statNumber">{plantStats.total}<span>块</span></p>
+            </article>
+            <article>
+              <h2>30天内采摘</h2>
+              <p className="statNumber">{plantStats.upcoming}<span>批</span></p>
+            </article>
+            <article>
+              <h2>空闲菜畦</h2>
+              <p className="statNumber">{plantStats.idle}<span>块</span></p>
+            </article>
+          </section>
+
+          <section className="workspace">
+            <form onSubmit={addPlant} className="panel">
+              <h2><Plus size={18} />新增种植计划</h2>
+              <select value={plantForm.bedId} onChange={(e) => selectPlantBed(e.target.value)}>
+                <option value="">选择目标菜畦</option>
+                {plantBedOptions.map((bed) => (
+                  <option key={bed.id} value={bed.id}>
+                    {bed.name} {bed.status === '空闲' ? '（空闲）' : ''}
+                  </option>
+                ))}
+              </select>
+              {plantBedOptions.length === 0 && (
+                <p className="muted" style={{ fontSize: '13px', marginTop: '-4px' }}>所有菜畦都已安排种植计划</p>
+              )}
+              <input placeholder="种植作物" value={plantForm.crop} onChange={(e) => setPlantForm({ ...plantForm, crop: e.target.value })} />
+              <div className="grid2">
+                <div>
+                  <label style={{ fontSize: '13px', color: '#71806a', marginBottom: '4px', display: 'block' }}>播种日期</label>
+                  <input type="date" value={plantForm.sowDate} onChange={(e) => setPlantForm({ ...plantForm, sowDate: e.target.value })} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '13px', color: '#71806a', marginBottom: '4px', display: 'block' }}>预计采摘</label>
+                  <input type="date" value={plantForm.harvestDate} onChange={(e) => setPlantForm({ ...plantForm, harvestDate: e.target.value })} />
+                </div>
+              </div>
+              <select value={plantForm.growthStage} onChange={(e) => setPlantForm({ ...plantForm, growthStage: e.target.value })}>
+                <option value="自动计算">自动计算生长期</option>
+                <option>播种期</option>
+                <option>发芽期</option>
+                <option>生长期</option>
+                <option>结果期</option>
+                <option>成熟期</option>
+              </select>
+              <textarea placeholder="备注（种植密度、品种特性等）" rows="3" value={plantForm.note} onChange={(e) => setPlantForm({ ...plantForm, note: e.target.value })} />
+              <button type="submit">保存计划</button>
+            </form>
+
+            <div className="panel wide">
+              <div className="toolbar">
+                <h2>未来30天采摘计划</h2>
+              </div>
+              {upcomingHarvests.length === 0 ? (
+                <div className="emptyState">
+                  <CalendarCheck size={36} />
+                  <p>未来30天暂无待采摘作物</p>
+                  <p className="muted">添加种植计划后将在此展示</p>
+                </div>
+              ) : (
+                <div className="harvestList">
+                  {upcomingHarvests.map((plant) => {
+                    const days = getDaysUntilHarvest(plant.harvestDate);
+                    const isUrgent = days.includes('今天') || (days.includes('还有') && parseInt(days.replace(/\D/g, '')) <= 7);
+                    return (
+                      <article className="harvestCard" key={plant.id}>
+                        <div className="harvestHeader">
+                          <div className="harvestInfo">
+                            <strong>{plant.crop}</strong>
+                            <span className="harvestBed">{plant.bedName}</span>
+                          </div>
+                          <div className={`harvestCountdown ${isUrgent ? 'urgent' : ''}`}>
+                            {days}
+                          </div>
+                        </div>
+                        <div className="harvestBody">
+                          <p className="row"><CalendarDays size={15} />预计采摘：{plant.harvestDate}<span>{getWeekday(plant.harvestDate)}</span></p>
+                          <p className="row"><Sprout size={15} />当前阶段：<span className={`stageTag ${plant.growthStage}`}>{plant.growthStage}</span></p>
+                          {plant.note && <p className="harvestNote">📝 {plant.note}</p>}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="workspace bottom">
+            <div className="panel wide">
+              <div className="toolbar">
+                <h2>全部种植计划</h2>
+                <div className="toolbarActions">
+                  <select className="filterSelect" value={plantFilter} onChange={(e) => setPlantFilter(e.target.value)}>
+                    <option value="">全部阶段</option>
+                    <option>播种期</option>
+                    <option>发芽期</option>
+                    <option>生长期</option>
+                    <option>结果期</option>
+                    <option>成熟期</option>
+                  </select>
+                  <label><Search size={16} /><input placeholder="搜索菜畦/作物/阶段" value={plantQuery} onChange={(e) => setPlantQuery(e.target.value)} /></label>
+                  {plantFilter && (
+                    <button className="clearBtn" onClick={() => setPlantFilter('')}>清除筛选</button>
+                  )}
+                </div>
+              </div>
+              <div className="plantList">
+                {filteredPlants.length === 0 ? (
+                  <div className="emptyState">
+                    <Sprout size={36} />
+                    <p>暂无种植计划{plantQuery || plantFilter ? '（请调整筛选条件）' : ''}</p>
+                    <p className="muted">空闲菜畦请先添加种植计划</p>
+                  </div>
+                ) : (
+                  filteredPlants.map((plant) => (
+                    <article className="plantCard" key={plant.id}>
+                      <div className="plantHeader">
+                        <div className="plantInfo">
+                          <strong>{plant.bedName}</strong>
+                          <span className="plantCrop">{plant.crop}</span>
+                        </div>
+                        <div className="plantActions">
+                          <button className="clearBtn" onClick={() => updatePlantGrowthStage(plant.id)} title="重新计算生长期">
+                            <CalendarDays size={14} />
+                          </button>
+                          <button className="deleteBtn" onClick={() => deletePlant(plant.id)}>
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="plantBody">
+                        <div className="plantDates">
+                          <div className="plantDateItem">
+                            <span className="plantDateLabel">播种</span>
+                            <span className="plantDateValue">{plant.sowDate}</span>
+                          </div>
+                          <div className="plantDateDivider">→</div>
+                          <div className="plantDateItem">
+                            <span className="plantDateLabel">预计采摘</span>
+                            <span className="plantDateValue">{plant.harvestDate}</span>
+                          </div>
+                        </div>
+                        <div className="plantStageRow">
+                          <span className={`stageTag ${plant.growthStage}`}>{plant.growthStage}</span>
+                          <span className="harvestCountdown">{getDaysUntilHarvest(plant.harvestDate)}</span>
+                        </div>
+                        {plant.note && <p className="plantNote">📝 {plant.note}</p>}
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
+            </div>
+          </section>
+
+          {idleBeds.length > 0 && (
+            <section className="workspace">
+              <div className="panel wide">
+                <div className="toolbar">
+                  <h2><AlertCircle size={18} />空闲菜畦（待安排种植）</h2>
+                </div>
+                <div className="cards">
+                  {idleBeds.map((bed) => (
+                    <article className="bedCard idleBedCard" key={bed.id}>
+                      <strong>{bed.name}</strong>
+                      <span>{bed.crop}</span>
+                      <p>{bed.area} · {bed.status}</p>
+                      {bed.warning && <p className="row alert"><TriangleAlert size={15} />{bed.warning}</p>}
+                      <button className="listButton" onClick={() => {
+                        setActiveTab('plants');
+                        selectPlantBed(bed.id);
+                      }}>
+                        <Plus size={16} /> 添加种植计划
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
         </>
       )}
 
