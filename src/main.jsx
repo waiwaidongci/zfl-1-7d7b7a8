@@ -80,32 +80,21 @@ const seedFees = [
 ];
 
 const seedEnvThresholds = {
-  temperature: { min: 10, max: 35, unit: '°C' },
-  humidity: { min: 40, max: 85, unit: '%' },
-  light: { min: 2000, max: 50000, unit: 'lux' },
-  water: { min: 20, max: 100, unit: '%' }
+  temperature: { min: 15, max: 32, unit: '°C' },
+  humidity: { min: 45, max: 80, unit: '%' },
+  light: { min: 3000, max: 45000, unit: 'lux' },
+  water: { min: 50, max: 100, unit: '%' }
 };
 
-const generateEnvHistory = () => {
-  const history = [];
-  for (let i = 6; i >= 0; i--) {
-    const date = iso(-i);
-    const baseTemp = 22 + Math.sin(i * 0.8) * 5;
-    const baseHumidity = 65 + Math.cos(i * 0.6) * 10;
-    const baseLight = 25000 + Math.sin(i * 0.5) * 10000;
-    const baseWater = 70 - i * 3 + Math.random() * 5;
-    history.push({
-      date,
-      temperature: Math.round((baseTemp + (Math.random() - 0.5) * 4) * 10) / 10,
-      humidity: Math.round((baseHumidity + (Math.random() - 0.5) * 8) * 10) / 10,
-      light: Math.round(baseLight + (Math.random() - 0.5) * 5000),
-      water: Math.round(Math.max(15, Math.min(95, baseWater)) * 10) / 10
-    });
-  }
-  return history;
-};
-
-const seedEnvHistory = generateEnvHistory();
+const seedEnvHistory = [
+  { date: iso(-6), temperature: 20.5, humidity: 68.2, light: 28500, water: 78.5 },
+  { date: iso(-5), temperature: 22.3, humidity: 65.8, light: 32000, water: 74.2 },
+  { date: iso(-4), temperature: 24.1, humidity: 62.4, light: 35800, water: 68.7 },
+  { date: iso(-3), temperature: 23.7, humidity: 70.1, light: 22400, water: 62.3 },
+  { date: iso(-2), temperature: 21.9, humidity: 73.5, light: 18600, water: 55.8 },
+  { date: iso(-1), temperature: 20.8, humidity: 71.2, light: 26300, water: 48.4 },
+  { date: iso(0),  temperature: 22.6, humidity: 66.9, light: 30200, water: 41.6 }
+];
 
 const getCurrentEnvData = (history) => {
   if (!history || history.length === 0) return null;
@@ -118,18 +107,57 @@ const getCurrentEnvData = (history) => {
   };
 };
 
-function useStoredState(key, initialValue) {
+function useStoredState(key, initialValue, validator) {
   const [value, setValue] = useState(() => {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : initialValue;
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return initialValue;
+      const parsed = JSON.parse(raw);
+      if (validator && !validator(parsed)) {
+        console.warn(`[useStoredState] 数据校验失败，回退到默认值: ${key}`);
+        return initialValue;
+      }
+      return parsed;
+    } catch (err) {
+      console.error(`[useStoredState] 读取失败，回退到默认值: ${key}`, err);
+      return initialValue;
+    }
   });
   const update = (next) => {
-    const resolved = typeof next === 'function' ? next(value) : next;
-    setValue(resolved);
-    localStorage.setItem(key, JSON.stringify(resolved));
+    try {
+      const resolved = typeof next === 'function' ? next(value) : next;
+      setValue(resolved);
+      localStorage.setItem(key, JSON.stringify(resolved));
+    } catch (err) {
+      console.error(`[useStoredState] 写入失败: ${key}`, err);
+    }
   };
   return [value, update];
 }
+
+const validateEnvHistory = (data) => {
+  if (!Array.isArray(data) || data.length === 0) return false;
+  return data.every((item) =>
+    typeof item === 'object' &&
+    item !== null &&
+    typeof item.date === 'string' &&
+    typeof item.temperature === 'number' &&
+    typeof item.humidity === 'number' &&
+    typeof item.light === 'number' &&
+    typeof item.water === 'number'
+  );
+};
+
+const validateEnvThresholds = (data) => {
+  if (typeof data !== 'object' || data === null) return false;
+  const keys = ['temperature', 'humidity', 'light', 'water'];
+  return keys.every((k) =>
+    data[k] &&
+    typeof data[k].min === 'number' &&
+    typeof data[k].max === 'number' &&
+    typeof data[k].unit === 'string'
+  );
+};
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -164,8 +192,8 @@ function App() {
   const [feeForm, setFeeForm] = useState({ bedId: '', bedName: '', adopter: '', startDate: iso(-30), endDate: iso(335), amount: '', paymentStatus: '待缴费', donationNote: '' });
   const [feeQuery, setFeeQuery] = useState('');
   const [feeStatusFilter, setFeeStatusFilter] = useState('');
-  const [envThresholds, setEnvThresholds] = useStoredState('zfl-1-env-thresholds', seedEnvThresholds);
-  const [envHistory, setEnvHistory] = useStoredState('zfl-1-env-history', seedEnvHistory);
+  const [envThresholds, setEnvThresholds] = useStoredState('zfl-1-env-thresholds', seedEnvThresholds, validateEnvThresholds);
+  const [envHistory, setEnvHistory] = useStoredState('zfl-1-env-history', seedEnvHistory, validateEnvHistory);
   const [showThresholdConfig, setShowThresholdConfig] = useState(false);
   const [thresholdForm, setThresholdForm] = useState(seedEnvThresholds);
 
