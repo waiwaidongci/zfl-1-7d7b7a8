@@ -1,0 +1,241 @@
+import React, { useState, useMemo } from 'react';
+import {
+  Wheat, Search, AlertCircle, CheckCircle2, Clock, Package,
+  User, Users, Heart, Trash2, Filter
+} from 'lucide-react';
+import { DistributionModal } from './DistributionModal';
+import {
+  DISTRIBUTION_TYPES,
+  DISTRIBUTION_OVERDUE_DAYS,
+  parseWeight,
+  formatWeight,
+  getDistributionTotal,
+  getDistributionStatus,
+  getDistributionStats,
+  getDistributionRemaining
+} from '../utils/distribution';
+import { iso } from '../data/seedData';
+
+const typeIcons = {
+  selfPickup: User,
+  communityShare: Users,
+  volunteerSample: Heart,
+  loss: Trash2
+};
+
+export function DistributionTab({ harvests, setHarvests, harvestOptions, harvestForm, setHarvestForm, addHarvest }) {
+  const [editingHarvest, setEditingHarvest] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [query, setQuery] = useState('');
+
+  const stats = useMemo(() => getDistributionStats(harvests), [harvests]);
+
+  const filteredHarvests = useMemo(() => {
+    let result = [...harvests];
+    if (query.trim()) {
+      const q = query.trim();
+      result = result.filter((h) =>
+        `${h.bed}${h.crop}${h.weight}${h.note}`.includes(q)
+      );
+    }
+    if (statusFilter) {
+      result = result.filter((h) => getDistributionStatus(h).key === statusFilter);
+    }
+    return result.sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [harvests, query, statusFilter]);
+
+  const saveDistribution = (harvestId, distribution) => {
+    setHarvests(harvests.map((h) =>
+      h.id === harvestId ? { ...h, distribution, distributionUpdatedAt: iso(0) } : h
+    ));
+    setEditingHarvest(null);
+  };
+
+  const openDistribution = (harvest) => {
+    setEditingHarvest(harvest);
+  };
+
+  return (
+    <>
+      <section className="dashboard">
+        <article>
+          <h2>待分配</h2>
+          <p className="statNumber" style={{ color: stats.unassigned > 0 ? '#8a2c2c' : '#2f613a' }}>
+            {stats.unassigned}<span>批</span>
+          </p>
+        </article>
+        <article>
+          <h2>部分分配</h2>
+          <p className="statNumber" style={{ color: stats.partial > 0 ? '#8a6a2c' : '#2f613a' }}>
+            {stats.partial}<span>批</span>
+          </p>
+        </article>
+        <article>
+          <h2>超期未取</h2>
+          <p className="statNumber" style={{ color: stats.overdue > 0 ? '#8b3f23' : '#2f613a' }}>
+            {stats.overdue}<span>批</span>
+          </p>
+        </article>
+        <article>
+          <h2>已完成</h2>
+          <p className="statNumber">{stats.completed}<span>批</span></p>
+        </article>
+      </section>
+
+      {stats.overdue > 0 && (
+        <section className="inventoryWarning" style={{ background: '#fef8e8', borderColor: '#f0d6a0' }}>
+          <h2 style={{ color: '#8a6a2c' }}><AlertCircle size={18} />采收分配提醒</h2>
+          <div className="warningCards">
+            {harvests.filter((h) => getDistributionStatus(h).isOverdue).slice(0, 4).map((h) => {
+              const status = getDistributionStatus(h);
+              const remaining = getDistributionRemaining(h);
+              return (
+                <div key={h.id} className="warningCard" style={{ background: '#fefbf0', borderColor: '#f0d6a0' }}>
+                  <div className="warningInfo">
+                    <strong style={{ color: '#5a4a1e' }}>{h.crop}</strong>
+                    <span style={{ fontSize: '12px', color: '#8a7a4e' }}>{h.bed}</span>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '14px', fontWeight: '600', color: '#8a6a2c' }}>
+                      {status.label}
+                      {remaining > 0 && ` · 剩${formatWeight(remaining)}`}
+                    </span>
+                    <span style={{ display: 'block', fontSize: '12px', color: '#b06a4a' }}>
+                      采摘于 {h.date}
+                    </span>
+                    <button type="button" className="miniBtn" style={{ marginTop: '6px', marginLeft: 0 }} onClick={() => openDistribution(h)}>
+                      立即处理
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="workspace">
+        <form onSubmit={addHarvest} className="panel">
+          <h2><Wheat size={18} />新增采摘记录</h2>
+          <select value={harvestForm.bed} onChange={(e) => setHarvestForm({ ...harvestForm, bed: e.target.value })}>
+            <option value="">选择菜畦</option>
+            {harvestOptions.map((name) => <option key={name}>{name}</option>)}
+          </select>
+          <input placeholder="采摘作物" value={harvestForm.crop} onChange={(e) => setHarvestForm({ ...harvestForm, crop: e.target.value })} />
+          <input placeholder="重量（如 1.4kg 或 300g）" value={harvestForm.weight} onChange={(e) => setHarvestForm({ ...harvestForm, weight: e.target.value })} />
+          <input type="date" value={harvestForm.date} onChange={(e) => setHarvestForm({ ...harvestForm, date: e.target.value })} />
+          <input placeholder="备注" value={harvestForm.note} onChange={(e) => setHarvestForm({ ...harvestForm, note: e.target.value })} />
+          <button>保存采摘</button>
+        </form>
+
+        <div className="panel wide">
+          <div className="toolbar">
+            <h2>采收分配列表</h2>
+            <div className="toolbarActions">
+              <select className="filterSelect" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                <option value="">全部状态</option>
+                <option value="unassigned">未分配</option>
+                <option value="partial">部分分配</option>
+                <option value="completed">已完成</option>
+              </select>
+              <label><Search size={16} /><input placeholder="搜索菜畦/作物/重量" value={query} onChange={(e) => setQuery(e.target.value)} /></label>
+              {statusFilter && (
+                <button className="clearBtn" onClick={() => setStatusFilter('')}>清除筛选</button>
+              )}
+            </div>
+          </div>
+
+          {filteredHarvests.length === 0 ? (
+            <div className="emptyState">
+              <Package size={36} />
+              <p>暂无采摘记录{query || statusFilter ? '（请调整筛选条件）' : ''}</p>
+              <p className="muted">添加采摘记录后可在此进行分配登记</p>
+            </div>
+          ) : (
+            <div className="harvestList">
+              {filteredHarvests.map((harvest) => {
+                const status = getDistributionStatus(harvest);
+                const distributed = getDistributionTotal(harvest.distribution);
+                const total = parseWeight(harvest.weight);
+                const remaining = getDistributionRemaining(harvest);
+                const progress = total > 0 ? Math.min(100, (distributed / total) * 100) : 0;
+                const daysSince = Math.floor((new Date() - new Date(harvest.date)) / 86400000);
+
+                return (
+                  <article key={harvest.id} className="harvestCard">
+                    <div className="harvestHeader">
+                      <div className="harvestInfo">
+                        <strong>{harvest.crop} · {harvest.weight}</strong>
+                        <span className="harvestBed">{harvest.bed}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span className={`distributionStatusTag ${status.key} ${status.isOverdue ? 'overdue' : ''}`}>
+                          {status.isOverdue && <AlertCircle size={12} />}
+                          {status.label}
+                          {status.isOverdue && `（超${daysSince - DISTRIBUTION_OVERDUE_DAYS}天）`}
+                        </span>
+                        <span style={{ fontSize: '12px', color: '#71806a' }}>{harvest.date}</span>
+                      </div>
+                    </div>
+
+                    <div className="harvestBody">
+                      <div className="distributionProgressWrap" style={{ padding: '0', border: 'none', background: 'transparent' }}>
+                        <div className="distributionProgressHeader" style={{ fontSize: '13px' }}>
+                          <span>
+                            已分配 <strong style={{ color: '#2f613a' }}>{formatWeight(distributed)}</strong>
+                            <span style={{ color: '#87917f', fontWeight: 'normal' }}> / {formatWeight(total)}</span>
+                          </span>
+                          <span style={{ color: remaining > 0 ? '#8a6a2c' : '#3d7a2c', fontWeight: '600' }}>
+                            {remaining > 0 ? `剩余 ${formatWeight(remaining)}` : '✓ 完成'}
+                          </span>
+                        </div>
+                        <div className="distributionProgressBarWrap">
+                          <div
+                            className={`distributionProgressBar ${distributed > total ? 'over' : ''}`}
+                            style={{ width: `${Math.min(100, distributed > total ? 100 : progress)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {harvest.distribution && (
+                        <div className="distributionMiniSummary">
+                          {DISTRIBUTION_TYPES.map((t) => {
+                            const val = harvest.distribution[t.key];
+                            if (!val) return null;
+                            const Icon = typeIcons[t.key];
+                            return (
+                              <span key={t.key} style={{ borderLeft: `3px solid ${t.color}`, paddingLeft: '6px' }}>
+                                <Icon size={11} /> {t.label}: {val}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {harvest.note && <p className="harvestNote">📝 {harvest.note}</p>}
+                    </div>
+
+                    <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+                      <button type="button" className="miniBtn distributionBtn" onClick={() => openDistribution(harvest)}>
+                        <Package size={12} />
+                        {harvest.distribution ? '编辑分配' : '登记分配'}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {editingHarvest && (
+        <DistributionModal
+          harvest={editingHarvest}
+          onClose={() => setEditingHarvest(null)}
+          onSave={(dist) => saveDistribution(editingHarvest.id, dist)}
+        />
+      )}
+    </>
+  );
+}
