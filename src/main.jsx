@@ -87,8 +87,11 @@ function App() {
   const harvestOptions = useMemo(() => beds.map((bed) => bed.name), [beds]);
 
   const getWeekday = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
     const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-    return weekdays[new Date(dateStr).getDay()];
+    return weekdays[d.getDay()];
   };
 
   const filteredSchedules = useMemo(() => {
