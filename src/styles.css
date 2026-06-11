@@ -372,4 +372,52 @@ textarea { width: 100%; border: 1px solid #cdd8c3; border-radius: 8px; padding: 
 .row.alert.critical { color: #c0392b; font-weight: 500; }
 .row.alert.critical span { color: #9b3b3b; }
 
-@media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } .toolbarActions { width: 100%; flex-direction: column; } .filterSelect { width: 100%; } .contactHeader { flex-direction: column; align-items: start; gap: 8px; } .plantDates { justify-content: space-between; } .stockRow { grid-template-columns: repeat(2, 1fr); } .warningCards { grid-template-columns: 1fr; } .transactionMeta { flex-direction: column; align-items: start; } .transactionHeader { flex-direction: column; align-items: start; gap: 8px; } .inventoryActions { flex-wrap: wrap; } .editFormActions { flex-direction: column; } .feeDetailRow { grid-template-columns: 1fr; } .feeHeader { flex-direction: column; align-items: start; } .feeActions { flex-wrap: wrap; } .feeSummaryBar { flex-direction: column; gap: 8px; } .feeExpiryCards { grid-template-columns: 1fr; } .feeExpiryCard { flex-direction: column; align-items: start; } .feeExpiryMeta { flex-direction: row; align-items: center; } .trendCharts { grid-template-columns: 1fr; } .envWaterValue { font-size: 36px; } .envSensorValue { font-size: 28px; } }
+.row.alert.harvestWarning { color: #5a4a1e !important; }
+.row.alert.harvestWarning span { color: #8a7a4e !important; }
+
+.distributionStatusTag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; flex-shrink: 0; white-space: nowrap; }
+.distributionStatusTag.unassigned { background: #fbe3e3; color: #8a2c2c; }
+.distributionStatusTag.partial { background: #fef6e4; color: #8a6a2c; }
+.distributionStatusTag.completed { background: #e8f5e3; color: #3d7a2c; }
+
+.distributionMiniSummary { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.distributionMiniSummary span { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 4px; font-size: 12px; background: #eef5e9; color: #55624e; }
+
+.harvestMiniActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.harvestMiniActions .miniBtn { margin-left: 0; }
+.harvestMiniActions .distributionBtn { background: #e8f5e3; color: #2f613a; border-color: #b8d8a8; }
+.harvestMiniActions .distributionBtn:hover { background: #d5edcc; }
+
+.distributionModal { max-width: 560px !important; }
+
+.distributionHarvestInfo { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 14px; background: #f8faf5; border-radius: 8px; }
+.distributionInfoItem { display: flex; flex-direction: column; gap: 4px; }
+.distributionInfoLabel { font-size: 12px; color: #87917f; }
+.distributionInfoValue { font-size: 15px; color: #3c4d38; font-weight: 500; }
+.distributionInfoValue.highlight { color: #2f613a; font-size: 18px; font-weight: 600; }
+
+.distributionProgressWrap { display: flex; flex-direction: column; gap: 8px; padding: 14px; background: #fbfcf8; border-radius: 8px; border: 1px solid #eef2eb; }
+.distributionProgressHeader { display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: #55624e; font-weight: 500; }
+.distributionProgressText { font-weight: 600; color: #8a6a2c; }
+.distributionProgressText.done { color: #3d7a2c; }
+.distributionProgressText.over { color: #8a2c2c; }
+.distributionProgressBarWrap { height: 10px; background: #eef2eb; border-radius: 5px; overflow: hidden; }
+.distributionProgressBar { height: 100%; background: linear-gradient(90deg, #6c8b42, #3d7a2c); border-radius: 5px; transition: width .3s ease; }
+.distributionProgressBar.over { background: linear-gradient(90deg, #c9764d, #8b3f23); }
+.distributionRemaining { margin: 0; font-size: 13px; color: #71806a; }
+.distributionRemaining strong { color: #2f613a; font-weight: 600; }
+
+.distributionFields { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.distributionFieldGroup { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 8px; background: #fbfcf8; border: 1px solid #eef2eb; position: relative; }
+.distributionFieldGroup.selfPickup { border-left: 3px solid #2c5f8a; }
+.distributionFieldGroup.communityShare { border-left: 3px solid #c0547a; }
+.distributionFieldGroup.volunteerSample { border-left: 3px solid #3d7a2c; }
+.distributionFieldGroup.loss { border-left: 3px solid #8a2c2c; }
+.distributionFieldLabel { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; color: #3c4d38; }
+.distributionFieldGroup input { padding: 10px 12px; }
+.distributionFieldHint { position: absolute; top: 12px; right: 12px; font-size: 12px; color: #87917f; background: #eef5e9; padding: 2px 8px; border-radius: 4px; }
+
+.distributionError { display: flex; align-items: flex-start; gap: 8px; padding: 12px 14px; background: #fbe3e3; border: 1px solid #e8a0a0; border-radius: 8px; color: #8a2c2c; font-size: 14px; line-height: 1.5; }
+.distributionError svg { flex-shrink: 0; margin-top: 2px; }
+
+@media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } .toolbarActions { width: 100%; flex-direction: column; } .filterSelect { width: 100%; } .contactHeader { flex-direction: column; align-items: start; gap: 8px; } .plantDates { justify-content: space-between; } .stockRow { grid-template-columns: repeat(2, 1fr); } .warningCards { grid-template-columns: 1fr; } .transactionMeta { flex-direction: column; align-items: start; } .transactionHeader { flex-direction: column; align-items: start; gap: 8px; } .inventoryActions { flex-wrap: wrap; } .editFormActions { flex-direction: column; } .feeDetailRow { grid-template-columns: 1fr; } .feeHeader { flex-direction: column; align-items: start; } .feeActions { flex-wrap: wrap; } .feeSummaryBar { flex-direction: column; gap: 8px; } .feeExpiryCards { grid-template-columns: 1fr; } .feeExpiryCard { flex-direction: column; align-items: start; } .feeExpiryMeta { flex-direction: row; align-items: center; } .trendCharts { grid-template-columns: 1fr; } .envWaterValue { font-size: 36px; } .envSensorValue { font-size: 28px; } .distributionHarvestInfo { grid-template-columns: 1fr; } .distributionFields { grid-template-columns: 1fr; } .harvestMiniCard > div:first-child { flex-direction: column; align-items: start !important; gap: 6px; } .distributionStatusTag { align-self: flex-start; } }

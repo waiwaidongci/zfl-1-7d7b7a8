@@ -58,6 +58,11 @@ const seedMaterials = [
   { id: crypto.randomUUID(), name: '防虫网', category: '耗材', unit: '张', lowStockThreshold: 3, note: '2m×5m' }
 ];
 
+const seedHarvestDistributions = [
+  { id: crypto.randomUUID(), harvestId: seedHarvests[0].id, selfPickup: 0.8, communityShare: 0.4, volunteerSample: 0.1, loss: 0.1, note: '认养人周六上午自取，社区分享给3户邻居' },
+  { id: crypto.randomUUID(), harvestId: seedHarvests[1].id, selfPickup: 1.2, communityShare: 0.5, volunteerSample: 0.2, loss: 0.2, note: '认养人下周自取，志愿者留样用于品种品鉴' }
+];
+
 const seedTransactions = [
   { id: crypto.randomUUID(), materialId: seedMaterials[0].id, materialName: '薄荷种子', category: '种子', type: 'inbound', quantity: 20, unit: '包', date: iso(-15), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
   { id: crypto.randomUUID(), materialId: seedMaterials[1].id, materialName: '樱桃番茄种子', category: '种子', type: 'inbound', quantity: 10, unit: '包', date: iso(-12), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
@@ -196,6 +201,11 @@ function App() {
   const [envHistory, setEnvHistory] = useStoredState('zfl-1-env-history', seedEnvHistory, validateEnvHistory);
   const [showThresholdConfig, setShowThresholdConfig] = useState(false);
   const [thresholdForm, setThresholdForm] = useState(seedEnvThresholds);
+  const [harvestDistributions, setHarvestDistributions] = useStoredState('zfl-1-harvest-distributions', seedHarvestDistributions);
+  const [showDistributionModal, setShowDistributionModal] = useState(false);
+  const [distributingHarvestId, setDistributingHarvestId] = useState(null);
+  const [distributionForm, setDistributionForm] = useState({ selfPickup: '', communityShare: '', volunteerSample: '', loss: '', note: '' });
+  const [distributionError, setDistributionError] = useState('');
 
   const weekWater = beds.filter((bed) => {
     const days = (new Date(bed.nextWater) - today) / 86400000;
@@ -850,6 +860,170 @@ function App() {
     }));
   };
 
+  const parseWeight = (weightStr) => {
+    if (!weightStr) return 0;
+    const num = parseFloat(String(weightStr).replace(/[^0-9.]/g, ''));
+    return isNaN(num) ? 0 : num;
+  };
+
+  const formatWeight = (num, unit = 'kg') => {
+    if (num === 0 || !num) return `0${unit}`;
+    return `${Number(num).toFixed(2).replace(/\.?0+$/, '')}${unit}`;
+  };
+
+  const getDistributionByHarvestId = useMemo(() => {
+    const map = {};
+    harvestDistributions.forEach((d) => {
+      map[d.harvestId] = d;
+    });
+    return map;
+  }, [harvestDistributions]);
+
+  const getDistributionStatus = useMemo(() => {
+    const map = {};
+    harvests.forEach((h) => {
+      const totalHarvest = parseWeight(h.weight);
+      const dist = getDistributionByHarvestId[h.id];
+      if (!dist) {
+        map[h.id] = { status: 'unassigned', allocated: 0, total: totalHarvest, remaining: totalHarvest, percentage: 0 };
+        return;
+      }
+      const allocated = (Number(dist.selfPickup) || 0) + (Number(dist.communityShare) || 0) + (Number(dist.volunteerSample) || 0) + (Number(dist.loss) || 0);
+      const remaining = Math.max(0, totalHarvest - allocated);
+      const percentage = totalHarvest > 0 ? Math.min(100, (allocated / totalHarvest) * 100) : 0;
+      let status = 'partial';
+      if (allocated === 0) status = 'unassigned';
+      else if (percentage >= 99.99) status = 'completed';
+      map[h.id] = { status, allocated, total: totalHarvest, remaining, percentage };
+    });
+    return map;
+  }, [harvests, getDistributionByHarvestId]);
+
+  const harvestUnassignedWarnings = useMemo(() => {
+    return harvests
+      .filter((h) => getDistributionStatus[h.id]?.status === 'unassigned')
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .map((h) => ({
+        id: `harvest-unassigned-${h.id}`,
+        type: 'harvest-unassigned',
+        name: `${h.crop}（${h.bed}）`,
+        message: `采摘重量 ${h.weight} 尚未分配去向`
+      }));
+  }, [harvests, getDistributionStatus]);
+
+  const harvestPartialWarnings = useMemo(() => {
+    return harvests
+      .filter((h) => getDistributionStatus[h.id]?.status === 'partial')
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .map((h) => ({
+        id: `harvest-partial-${h.id}`,
+        type: 'harvest-partial',
+        name: `${h.crop}（${h.bed}）`,
+        message: `还剩 ${formatWeight(getDistributionStatus[h.id].remaining)} 未分配（已分配 ${Math.round(getDistributionStatus[h.id].percentage)}%）`
+      }));
+  }, [harvests, getDistributionStatus]);
+
+  const allWarningsWithDistribution = useMemo(() => {
+    const distWarnings = [...harvestUnassignedWarnings, ...harvestPartialWarnings];
+    return [...allWarnings, ...distWarnings];
+  }, [allWarnings, harvestUnassignedWarnings, harvestPartialWarnings]);
+
+  const openDistributionModal = (harvestId) => {
+    const harvest = harvests.find((h) => h.id === harvestId);
+    if (!harvest) return;
+    const existing = getDistributionByHarvestId[harvestId];
+    if (existing) {
+      setDistributionForm({
+        selfPickup: existing.selfPickup || '',
+        communityShare: existing.communityShare || '',
+        volunteerSample: existing.volunteerSample || '',
+        loss: existing.loss || '',
+        note: existing.note || ''
+      });
+    } else {
+      setDistributionForm({ selfPickup: '', communityShare: '', volunteerSample: '', loss: '', note: '' });
+    }
+    setDistributingHarvestId(harvestId);
+    setDistributionError('');
+    setShowDistributionModal(true);
+  };
+
+  const closeDistributionModal = () => {
+    setShowDistributionModal(false);
+    setDistributingHarvestId(null);
+    setDistributionForm({ selfPickup: '', communityShare: '', volunteerSample: '', loss: '', note: '' });
+    setDistributionError('');
+  };
+
+  const validateDistribution = () => {
+    if (!distributingHarvestId) return { valid: false, message: '采摘记录不存在' };
+    const harvest = harvests.find((h) => h.id === distributingHarvestId);
+    if (!harvest) return { valid: false, message: '采摘记录不存在' };
+    const totalHarvest = parseWeight(harvest.weight);
+    const selfPickup = Number(distributionForm.selfPickup) || 0;
+    const communityShare = Number(distributionForm.communityShare) || 0;
+    const volunteerSample = Number(distributionForm.volunteerSample) || 0;
+    const loss = Number(distributionForm.loss) || 0;
+    const totalAllocated = selfPickup + communityShare + volunteerSample + loss;
+    if (selfPickup < 0 || communityShare < 0 || volunteerSample < 0 || loss < 0) {
+      return { valid: false, message: '分配重量不能为负数' };
+    }
+    if (totalAllocated > totalHarvest + 0.001) {
+      return {
+        valid: false,
+        message: `分配总量（${formatWeight(totalAllocated)}）不能超过采摘重量（${harvest.weight}），还可分配 ${formatWeight(Math.max(0, totalHarvest - totalAllocated + (totalAllocated > totalHarvest ? 0 : 0)))}`
+      };
+    }
+    return { valid: true, totalHarvest, totalAllocated };
+  };
+
+  const saveDistribution = (event) => {
+    event.preventDefault();
+    const validation = validateDistribution();
+    if (!validation.valid) {
+      setDistributionError(validation.message);
+      return;
+    }
+    const existing = getDistributionByHarvestId[distributingHarvestId];
+    const selfPickup = Number(distributionForm.selfPickup) || 0;
+    const communityShare = Number(distributionForm.communityShare) || 0;
+    const volunteerSample = Number(distributionForm.volunteerSample) || 0;
+    const loss = Number(distributionForm.loss) || 0;
+    const entry = {
+      id: existing ? existing.id : crypto.randomUUID(),
+      harvestId: distributingHarvestId,
+      selfPickup,
+      communityShare,
+      volunteerSample,
+      loss,
+      note: distributionForm.note
+    };
+    if (existing) {
+      setHarvestDistributions(harvestDistributions.map((d) => (d.id === existing.id ? entry : d)));
+    } else {
+      setHarvestDistributions([entry, ...harvestDistributions]);
+    }
+    closeDistributionModal();
+  };
+
+  const currentDistributingHarvest = useMemo(() => {
+    if (!distributingHarvestId) return null;
+    return harvests.find((h) => h.id === distributingHarvestId) || null;
+  }, [distributingHarvestId, harvests]);
+
+  const distributionFormTotal = useMemo(() => {
+    const selfPickup = Number(distributionForm.selfPickup) || 0;
+    const communityShare = Number(distributionForm.communityShare) || 0;
+    const volunteerSample = Number(distributionForm.volunteerSample) || 0;
+    const loss = Number(distributionForm.loss) || 0;
+    return selfPickup + communityShare + volunteerSample + loss;
+  }, [distributionForm]);
+
+  const distributionHarvestTotal = useMemo(() => {
+    if (!currentDistributingHarvest) return 0;
+    return parseWeight(currentDistributingHarvest.weight);
+  }, [currentDistributingHarvest]);
+
   return (
     <main>
       <header className="hero">
@@ -862,7 +1036,7 @@ function App() {
           <span><Droplets size={18} />{weekWater.length}块本周浇水</span>
           <span><Timer size={18} />{feeStats.expiringCount}笔即将到期</span>
           <span><XCircle size={18} />{feeStats.overdueCount}笔欠费</span>
-          <span><TriangleAlert size={18} />{allWarnings.length}条异常</span>
+          <span><TriangleAlert size={18} />{allWarningsWithDistribution.length}条异常</span>
         </div>
       </header>
 
@@ -899,9 +1073,30 @@ function App() {
             </article>
             <article>
               <h2>最近采摘</h2>
-              {harvests.slice(0, 4).map((item) => (
+              {harvests.slice(0, 4).map((item) => {
+                const distStatus = getDistributionStatus[item.id];
+                const statusTag = distStatus?.status;
+                return (
                 <div key={item.id} className="harvestMiniCard">
-                  <p className="row" style={{ margin: 0 }}><Wheat size={16} />{item.crop}{item.weight}<span>{item.date}</span></p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <p className="row" style={{ margin: 0, flex: 1 }}><Wheat size={16} />{item.crop}{item.weight}<span>{item.date}</span></p>
+                    {statusTag && (
+                      <span className={`distributionStatusTag ${statusTag}`} title={`已分配 ${Math.round(distStatus.percentage)}%`}>
+                        {statusTag === 'unassigned' && <AlertCircle size={12} />}
+                        {statusTag === 'partial' && <Timer size={12} />}
+                        {statusTag === 'completed' && <CheckCircle2 size={12} />}
+                        {statusTag === 'unassigned' ? '未分配' : statusTag === 'partial' ? `部分分配 ${Math.round(distStatus.percentage)}%` : '已分配'}
+                      </span>
+                    )}
+                  </div>
+                  {distStatus && distStatus.status !== 'unassigned' && getDistributionByHarvestId[item.id] && (
+                    <div className="distributionMiniSummary">
+                      {getDistributionByHarvestId[item.id].selfPickup > 0 && <span><Users size={11} />自取{formatWeight(getDistributionByHarvestId[item.id].selfPickup)}</span>}
+                      {getDistributionByHarvestId[item.id].communityShare > 0 && <span><Heart size={11} />分享{formatWeight(getDistributionByHarvestId[item.id].communityShare)}</span>}
+                      {getDistributionByHarvestId[item.id].volunteerSample > 0 && <span><Sprout size={11} />留样{formatWeight(getDistributionByHarvestId[item.id].volunteerSample)}</span>}
+                      {getDistributionByHarvestId[item.id].loss > 0 && <span><XCircle size={11} />损耗{formatWeight(getDistributionByHarvestId[item.id].loss)}</span>}
+                    </div>
+                  )}
                   {consumptionsByHarvestId[item.id] && consumptionsByHarvestId[item.id].length > 0 && (
                     <div className="taskConsumptions">
                       {consumptionsByHarvestId[item.id].map((c) => {
@@ -914,19 +1109,33 @@ function App() {
                       })}
                     </div>
                   )}
-                  <button type="button" className="miniBtn" onClick={() => quickConsumeForHarvest(item.id, `${item.crop} ${item.weight}`)}>
-                    <ArrowUpCircle size={12} />登记追肥/耗材
-                  </button>
+                  <div className="harvestMiniActions">
+                    <button type="button" className="miniBtn distributionBtn" onClick={() => openDistributionModal(item.id)}>
+                      {statusTag === 'unassigned' ? <AlertCircle size={12} /> : statusTag === 'completed' ? <CheckCircle2 size={12} /> : <Timer size={12} />}
+                      {statusTag === 'unassigned' ? '分配去向' : statusTag === 'completed' ? '编辑分配' : '继续分配'}
+                    </button>
+                    <button type="button" className="miniBtn" onClick={() => quickConsumeForHarvest(item.id, `${item.crop} ${item.weight}`)}>
+                      <ArrowUpCircle size={12} />登记追肥/耗材
+                    </button>
+                  </div>
                 </div>
-              ))}
+              );
+              })}
             </article>
             <article>
               <h2>异常提醒</h2>
-              {allWarnings.length ? allWarnings.map((w) => (
-                <p className={`row alert ${w.level === 'critical' ? 'critical' : ''}`} key={w.id}>
-                  <TriangleAlert size={16} />
-                  {w.type === 'bed' ? w.name : w.sensorName}
-                  <span>{w.type === 'bed' ? w.message : w.message}</span>
+              {allWarningsWithDistribution.length ? allWarningsWithDistribution.map((w) => (
+                <p className={`row alert ${w.level === 'critical' ? 'critical' : ''} ${w.type?.startsWith('harvest-') ? 'harvestWarning' : ''}`} key={w.id}>
+                  {w.type?.startsWith('harvest-') ? <AlertCircle size={16} /> : <TriangleAlert size={16} />}
+                  {w.type === 'bed' ? w.name : w.type?.startsWith('harvest-') ? w.name : w.sensorName}
+                  <span onClick={() => {
+                    if (w.type === 'harvest-unassigned' || w.type === 'harvest-partial') {
+                      const harvestId = w.id.replace('harvest-unassigned-', '').replace('harvest-partial-', '');
+                      openDistributionModal(harvestId);
+                    }
+                  }} style={{ cursor: w.type?.startsWith('harvest-') ? 'pointer' : 'default' }}>
+                    {w.type === 'bed' ? w.message : w.type?.startsWith('harvest-') ? `${w.message}（点击分配）` : w.message}
+                  </span>
                 </p>
               )) : <p className="muted">暂无异常</p>}
             </article>
@@ -2165,6 +2374,153 @@ function App() {
               <div className="modalActions">
                 <button type="button" className="clearBtn" onClick={() => setShowThresholdConfig(false)}>取消</button>
                 <button type="submit">保存阈值</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showDistributionModal && currentDistributingHarvest && (
+        <div className="modalOverlay" onClick={closeDistributionModal}>
+          <div className="modalContent distributionModal" onClick={(e) => e.stopPropagation()}>
+            <div className="modalHeader">
+              <h2><Wheat size={18} />采摘分配 · {currentDistributingHarvest.crop}</h2>
+              <button className="closeBtn" onClick={closeDistributionModal}>×</button>
+            </div>
+            <form onSubmit={saveDistribution} className="modalBody">
+              <div className="distributionHarvestInfo">
+                <div className="distributionInfoItem">
+                  <span className="distributionInfoLabel">菜畦</span>
+                  <span className="distributionInfoValue">{currentDistributingHarvest.bed}</span>
+                </div>
+                <div className="distributionInfoItem">
+                  <span className="distributionInfoLabel">采摘日期</span>
+                  <span className="distributionInfoValue">{currentDistributingHarvest.date}</span>
+                </div>
+                <div className="distributionInfoItem">
+                  <span className="distributionInfoLabel">采摘重量</span>
+                  <span className="distributionInfoValue highlight">{currentDistributingHarvest.weight}</span>
+                </div>
+              </div>
+
+              <div className="distributionProgressWrap">
+                <div className="distributionProgressHeader">
+                  <span>分配进度</span>
+                  <span className={`distributionProgressText ${distributionFormTotal > distributionHarvestTotal + 0.001 ? 'over' : distributionFormTotal >= distributionHarvestTotal - 0.001 ? 'done' : ''}`}>
+                    {formatWeight(distributionFormTotal)} / {currentDistributingHarvest.weight}
+                    （{distributionHarvestTotal > 0 ? Math.round((distributionFormTotal / distributionHarvestTotal) * 100) : 0}%）
+                  </span>
+                </div>
+                <div className="distributionProgressBarWrap">
+                  <div
+                    className={`distributionProgressBar ${distributionFormTotal > distributionHarvestTotal + 0.001 ? 'over' : ''}`}
+                    style={{ width: `${distributionHarvestTotal > 0 ? Math.min(100, (distributionFormTotal / distributionHarvestTotal) * 100) : 0}%` }}
+                  />
+                </div>
+                {distributionHarvestTotal > 0 && distributionFormTotal <= distributionHarvestTotal + 0.001 && (
+                  <p className="distributionRemaining">
+                    剩余可分配：<strong>{formatWeight(Math.max(0, distributionHarvestTotal - distributionFormTotal))}</strong>
+                  </p>
+                )}
+              </div>
+
+              <div className="distributionFields">
+                <div className="distributionFieldGroup selfPickup">
+                  <label className="distributionFieldLabel"><Users size={16} /> 认养人自取 (kg)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    value={distributionForm.selfPickup}
+                    onChange={(e) => {
+                      setDistributionForm({ ...distributionForm, selfPickup: e.target.value });
+                      setDistributionError('');
+                    }}
+                  />
+                  {distributionForm.selfPickup && Number(distributionForm.selfPickup) > 0 && (
+                    <span className="distributionFieldHint">约 {distributionHarvestTotal > 0 ? Math.round((Number(distributionForm.selfPickup) / distributionHarvestTotal) * 100) : 0}%</span>
+                  )}
+                </div>
+
+                <div className="distributionFieldGroup communityShare">
+                  <label className="distributionFieldLabel"><Heart size={16} /> 社区分享 (kg)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    value={distributionForm.communityShare}
+                    onChange={(e) => {
+                      setDistributionForm({ ...distributionForm, communityShare: e.target.value });
+                      setDistributionError('');
+                    }}
+                  />
+                  {distributionForm.communityShare && Number(distributionForm.communityShare) > 0 && (
+                    <span className="distributionFieldHint">约 {distributionHarvestTotal > 0 ? Math.round((Number(distributionForm.communityShare) / distributionHarvestTotal) * 100) : 0}%</span>
+                  )}
+                </div>
+
+                <div className="distributionFieldGroup volunteerSample">
+                  <label className="distributionFieldLabel"><Sprout size={16} /> 志愿者留样 (kg)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    value={distributionForm.volunteerSample}
+                    onChange={(e) => {
+                      setDistributionForm({ ...distributionForm, volunteerSample: e.target.value });
+                      setDistributionError('');
+                    }}
+                  />
+                  {distributionForm.volunteerSample && Number(distributionForm.volunteerSample) > 0 && (
+                    <span className="distributionFieldHint">约 {distributionHarvestTotal > 0 ? Math.round((Number(distributionForm.volunteerSample) / distributionHarvestTotal) * 100) : 0}%</span>
+                  )}
+                </div>
+
+                <div className="distributionFieldGroup loss">
+                  <label className="distributionFieldLabel"><XCircle size={16} /> 损耗 (kg)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    value={distributionForm.loss}
+                    onChange={(e) => {
+                      setDistributionForm({ ...distributionForm, loss: e.target.value });
+                      setDistributionError('');
+                    }}
+                  />
+                  {distributionForm.loss && Number(distributionForm.loss) > 0 && (
+                    <span className="distributionFieldHint">约 {distributionHarvestTotal > 0 ? Math.round((Number(distributionForm.loss) / distributionHarvestTotal) * 100) : 0}%</span>
+                  )}
+                </div>
+              </div>
+
+              <textarea
+                placeholder="分配备注（认养人自取时间、分享对象、损耗原因等）"
+                rows="3"
+                value={distributionForm.note}
+                onChange={(e) => setDistributionForm({ ...distributionForm, note: e.target.value })}
+              />
+
+              {distributionError && (
+                <div className="distributionError">
+                  <AlertTriangle size={16} />
+                  <span>{distributionError}</span>
+                </div>
+              )}
+
+              <div className="modalActions">
+                <button type="button" className="clearBtn" onClick={closeDistributionModal}>取消</button>
+                <button
+                  type="submit"
+                  disabled={distributionFormTotal > distributionHarvestTotal + 0.001}
+                  style={distributionFormTotal > distributionHarvestTotal + 0.001 ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+                >
+                  <CheckCircle2 size={14} /> 保存分配
+                </button>
               </div>
             </form>
           </div>
