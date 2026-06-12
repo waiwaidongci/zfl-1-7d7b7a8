@@ -68,6 +68,8 @@ export function ConsistencyCheckCenter({
   const [selectedSeverity, setSelectedSeverity] = useState('');
   const [expandedIssueId, setExpandedIssueId] = useState(null);
   const [fixingIssueId, setFixingIssueId] = useState(null);
+  const [isBatchFixing, setIsBatchFixing] = useState(false);
+  const [batchFixProgress, setBatchFixProgress] = useState({ current: 0, total: 0 });
 
   const stats = useMemo(() => getConsistencyStats(issues), [issues]);
 
@@ -100,7 +102,41 @@ export function ConsistencyCheckCenter({
     const issuesToFix = severity
       ? filteredIssues.filter(i => i.severity === severity)
       : filteredIssues;
-    await onBatchFix(issuesToFix);
+    const autoFixable = issuesToFix.filter(i => canAutoFix(i));
+    
+    if (autoFixable.length === 0) return;
+    
+    setIsBatchFixing(true);
+    setBatchFixProgress({ current: 0, total: autoFixable.length });
+    
+    try {
+      await onBatchFix(autoFixable);
+    } finally {
+      setBatchFixProgress({ current: autoFixable.length, total: autoFixable.length });
+      setTimeout(() => {
+        setIsBatchFixing(false);
+        setBatchFixProgress({ current: 0, total: 0 });
+      }, 500);
+    }
+  };
+
+  const handleFixCategory = async (categoryIssues) => {
+    const autoFixable = categoryIssues.filter(i => canAutoFix(i));
+    
+    if (autoFixable.length === 0) return;
+    
+    setIsBatchFixing(true);
+    setBatchFixProgress({ current: 0, total: autoFixable.length });
+    
+    try {
+      await onBatchFix(autoFixable);
+    } finally {
+      setBatchFixProgress({ current: autoFixable.length, total: autoFixable.length });
+      setTimeout(() => {
+        setIsBatchFixing(false);
+        setBatchFixProgress({ current: 0, total: 0 });
+      }, 500);
+    }
   };
 
   const toggleExpand = (issueId) => {
@@ -140,10 +176,16 @@ export function ConsistencyCheckCenter({
           )}
         </div>
         <div className="consistencyActions">
+          {isBatchFixing && (
+            <span className="batchProgress">
+              <RefreshCw size={14} className="spinning" />
+              批量修复中 {batchFixProgress.current}/{batchFixProgress.total}
+            </span>
+          )}
           <button
             className="miniBtn"
             onClick={() => handleFixAll()}
-            disabled={filteredIssues.length === 0 || isChecking}
+            disabled={filteredIssues.length === 0 || isChecking || isBatchFixing}
           >
             <CheckCircle2 size={14} />一键修复全部
           </button>
@@ -152,7 +194,7 @@ export function ConsistencyCheckCenter({
               className="miniBtn"
               style={{ background: '#8a2c2c', color: '#fff', borderColor: '#8a2c2c' }}
               onClick={() => handleFixAll(ISSUE_SEVERITY.CRITICAL)}
-              disabled={isChecking}
+              disabled={isChecking || isBatchFixing}
             >
               <AlertCircle size={14} />修复严重问题 ({stats.critical})
             </button>
@@ -160,9 +202,9 @@ export function ConsistencyCheckCenter({
           <button
             className="miniBtn"
             onClick={onRefresh}
-            disabled={isChecking}
+            disabled={isChecking || isBatchFixing}
           >
-            <RefreshCw size={14} className={isChecking ? 'spinning' : ''} />
+            <RefreshCw size={14} className={isChecking || isBatchFixing ? 'spinning' : ''} />
             {isChecking ? '检查中...' : '重新检查'}
           </button>
         </div>
@@ -285,10 +327,11 @@ export function ConsistencyCheckCenter({
                   </h3>
                   <button
                     className="miniBtn"
-                    onClick={() => handleFix(categoryIssues[0])}
-                    disabled={!categoryIssues.some(i => canAutoFix(i))}
+                    onClick={() => handleFixCategory(categoryIssues)}
+                    disabled={!categoryIssues.some(i => canAutoFix(i)) || isBatchFixing}
                   >
-                    <CheckCircle2 size={12} />修复此类
+                    <CheckCircle2 size={12} />
+                    修复此类 ({categoryIssues.filter(i => canAutoFix(i)).length})
                   </button>
                 </div>
                 <div className="issuesList">

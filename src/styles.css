@@ -3184,6 +3184,20 @@ textarea { width: 100%; border: 1px solid #cdd8c3; border-radius: 8px; padding: 
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.batchProgress {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #eef5e9;
+  border: 1px solid #c8dcb8;
+  border-radius: 8px;
+  color: #2f613a;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .consistencyStats {

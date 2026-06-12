@@ -1015,142 +1015,163 @@ function App() {
     );
   };
 
-  const runConsistencyCheck = () => {
+  const runConsistencyCheck = (currentData = null) => {
     setIsCheckingConsistency(true);
     setTimeout(() => {
-      const issues = runAllConsistencyChecks({
-        beds, tasks, inspections, harvests, plants, transactions, contacts, materials
-      });
+      const data = currentData || { beds, tasks, inspections, harvests, plants, transactions, contacts, materials };
+      const issues = runAllConsistencyChecks(data);
       setConsistencyIssues(issues);
       setLastConsistencyCheck(new Date());
       setIsCheckingConsistency(false);
     }, 300);
   };
 
+  const applyFixToData = (issue, currentBeds, currentTasks, currentInspections, currentHarvests, currentPlants, currentTransactions, currentContacts) => {
+    const { fixType, fixData } = issue;
+    let newBeds = currentBeds;
+    let newTasks = currentTasks;
+    let newInspections = currentInspections;
+    let newHarvests = currentHarvests;
+    let newPlants = currentPlants;
+    let newTransactions = currentTransactions;
+    let newContacts = currentContacts;
+
+    switch (fixType) {
+      case 'clear_bed_warning':
+        newBeds = currentBeds.map(b => b.id === fixData.bedId ? { ...b, warning: '' } : b);
+        break;
+
+      case 'remove_duplicate_tasks': {
+        const relatedTasks = currentTasks.filter(t =>
+          t.relatedInspectionId === fixData.inspectionId && t.taskType === fixData.taskType
+        );
+        const tasksToKeep = relatedTasks.slice(0, fixData.keepCount).map(t => t.id);
+        newTasks = currentTasks.filter(t =>
+          !(t.relatedInspectionId === fixData.inspectionId &&
+            t.taskType === fixData.taskType &&
+            !tasksToKeep.includes(t.id))
+        );
+        break;
+      }
+
+      case 'adjust_distribution': {
+        const harvest = currentHarvests.find(h => h.id === fixData.harvestId);
+        if (harvest && harvest.distribution) {
+          const ratio = fixData.maxAllowed / getDistributionTotal(harvest.distribution);
+          const adjustedDist = { ...harvest.distribution };
+
+          for (const key of Object.keys(adjustedDist)) {
+            if (key === 'distributionUpdatedAt' || key === 'selfPickupConfirmedAt') continue;
+            if (adjustedDist[key]) {
+              const grams = parseWeight(adjustedDist[key]);
+              const newGrams = Math.round(grams * ratio);
+              adjustedDist[key] = newGrams >= 1000
+                ? `${(newGrams / 1000).toFixed(1)}kg`
+                : `${newGrams}g`;
+            }
+          }
+
+          newHarvests = currentHarvests.map(h =>
+            h.id === fixData.harvestId ? { ...h, distribution: adjustedDist } : h
+          );
+        }
+        break;
+      }
+
+      case 'update_bed_status':
+        newBeds = currentBeds.map(b =>
+          b.id === fixData.bedId ? { ...b, status: fixData.newStatus } : b
+        );
+        break;
+
+      case 'clear_transaction_relation':
+        newTransactions = currentTransactions.map(t =>
+          t.id === fixData.transactionId
+            ? { ...t, relatedType: '', relatedId: '', relatedName: '' }
+            : t
+        );
+        break;
+
+      case 'retry_sync_inspection': {
+        const result = syncAllInspections(currentInspections, currentBeds, currentTasks);
+        newBeds = result.beds;
+        newTasks = result.tasks;
+        newInspections = result.inspections.map(i =>
+          i.id === fixData.inspectionId ? { ...i, syncStatus: 'synced', retryCount: 0 } : i
+        );
+        break;
+      }
+
+      case 'send_pickup_notice': {
+        const harvest = currentHarvests.find(h => h.id === fixData.harvestId);
+        if (harvest && harvest.distribution?.selfPickup) {
+          if (!checkPickupNoticeExists(currentContacts, harvest.id)) {
+            const contact = generatePickupNoticeContact(harvest, currentBeds);
+            if (contact) {
+              newContacts = [contact, ...currentContacts];
+            }
+          }
+        }
+        break;
+      }
+
+      case 'sync_pickup_confirmation': {
+        const now = new Date().toISOString();
+        newHarvests = currentHarvests.map(h => {
+          if (h.id !== fixData.harvestId) return h;
+          return {
+            ...h,
+            distribution: {
+              ...h.distribution,
+              selfPickupConfirmedAt: now
+            }
+          };
+        });
+        newContacts = currentContacts.map(c => {
+          if (c.id !== fixData.contactId) return c;
+          return {
+            ...c,
+            pickupStatus: 'confirmed',
+            pickupConfirmedAt: now,
+            note: c.note
+              ? `${c.note} · 已于${now.slice(5, 16)}确认取菜`
+              : `已于${now.slice(5, 16)}确认取菜`
+          };
+        });
+        break;
+      }
+
+      default:
+        break;
+    }
+
+    return { newBeds, newTasks, newInspections, newHarvests, newPlants, newTransactions, newContacts };
+  };
+
   const handleFixIssue = (issue) => {
     return new Promise((resolve) => {
       setTimeout(() => {
-        const data = { beds, tasks, inspections, harvests, plants, transactions, contacts, materials };
-        const setters = {
-          setBeds, setTasks, setInspections, setHarvests, setPlants,
-          setTransactions, setContacts
-        };
+        const { newBeds, newTasks, newInspections, newHarvests, newPlants, newTransactions, newContacts } = 
+          applyFixToData(issue, beds, tasks, inspections, harvests, plants, transactions, contacts);
 
-        const { fixType, fixData } = issue;
+        setBeds(newBeds);
+        setTasks(newTasks);
+        setInspections(newInspections);
+        setHarvests(newHarvests);
+        setPlants(newPlants);
+        setTransactions(newTransactions);
+        setContacts(newContacts);
 
-        switch (fixType) {
-          case 'clear_bed_warning':
-            setBeds(beds.map(b => b.id === fixData.bedId ? { ...b, warning: '' } : b));
-            break;
-
-          case 'remove_duplicate_tasks': {
-            const relatedTasks = tasks.filter(t =>
-              t.relatedInspectionId === fixData.inspectionId && t.taskType === fixData.taskType
-            );
-            const tasksToKeep = relatedTasks.slice(0, fixData.keepCount).map(t => t.id);
-            setTasks(tasks.filter(t =>
-              !(t.relatedInspectionId === fixData.inspectionId &&
-                t.taskType === fixData.taskType &&
-                !tasksToKeep.includes(t.id))
-            ));
-            break;
-          }
-
-          case 'adjust_distribution': {
-            const harvest = harvests.find(h => h.id === fixData.harvestId);
-            if (harvest && harvest.distribution) {
-              const ratio = fixData.maxAllowed / getDistributionTotal(harvest.distribution);
-              const adjustedDist = { ...harvest.distribution };
-
-              for (const key of Object.keys(adjustedDist)) {
-                if (key === 'distributionUpdatedAt' || key === 'selfPickupConfirmedAt') continue;
-                if (adjustedDist[key]) {
-                  const grams = parseWeight(adjustedDist[key]);
-                  const newGrams = Math.round(grams * ratio);
-                  adjustedDist[key] = newGrams >= 1000
-                    ? `${(newGrams / 1000).toFixed(1)}kg`
-                    : `${newGrams}g`;
-                }
-              }
-
-              setHarvests(harvests.map(h =>
-                h.id === fixData.harvestId ? { ...h, distribution: adjustedDist } : h
-              ));
-            }
-            break;
-          }
-
-          case 'update_bed_status':
-            setBeds(beds.map(b =>
-              b.id === fixData.bedId ? { ...b, status: fixData.newStatus } : b
-            ));
-            break;
-
-          case 'clear_transaction_relation':
-            setTransactions(transactions.map(t =>
-              t.id === fixData.transactionId
-                ? { ...t, relatedType: '', relatedId: '', relatedName: '' }
-                : t
-            ));
-            break;
-
-          case 'retry_sync_inspection': {
-            const result = syncAllInspections(inspections, beds, tasks);
-            setBeds(result.beds);
-            setTasks(result.tasks);
-            setInspections(result.inspections.map(i =>
-              i.id === fixData.inspectionId ? { ...i, syncStatus: 'synced', retryCount: 0 } : i
-            ));
-            break;
-          }
-
-          case 'send_pickup_notice': {
-            const harvest = harvests.find(h => h.id === fixData.harvestId);
-            if (harvest && harvest.distribution?.selfPickup) {
-              if (!checkPickupNoticeExists(contacts, harvest.id)) {
-                const contact = generatePickupNoticeContact(harvest, beds);
-                if (contact) {
-                  setContacts([contact, ...contacts]);
-                }
-              }
-            }
-            break;
-          }
-
-          case 'sync_pickup_confirmation': {
-            const now = new Date().toISOString();
-            setHarvests(harvests.map(h => {
-              if (h.id !== fixData.harvestId) return h;
-              return {
-                ...h,
-                distribution: {
-                  ...h.distribution,
-                  selfPickupConfirmedAt: now
-                }
-              };
-            }));
-            setContacts(contacts.map(c => {
-              if (c.id !== fixData.contactId) return c;
-              return {
-                ...c,
-                pickupStatus: 'confirmed',
-                pickupConfirmedAt: now,
-                note: c.note
-                  ? `${c.note} · 已于${now.slice(5, 16)}确认取菜`
-                  : `已于${now.slice(5, 16)}确认取菜`
-              };
-            }));
-            break;
-          }
-
-          default:
-            break;
-        }
+        setConsistencyIssues(prev => prev.filter(i => i.id !== issue.id));
 
         setTimeout(() => {
-          runConsistencyCheck();
+          runConsistencyCheck({
+            beds: newBeds, tasks: newTasks, inspections: newInspections,
+            harvests: newHarvests, plants: newPlants, transactions: newTransactions,
+            contacts: newContacts, materials
+          });
           resolve(true);
-        }, 200);
+        }, 50);
       }, 300);
     });
   };
@@ -1160,9 +1181,49 @@ function App() {
       !['handle_missing_material', 'review_inspection_status'].includes(i.fixType)
     );
 
+    if (autoFixable.length === 0) return;
+
+    let currentBeds = [...beds];
+    let currentTasks = [...tasks];
+    let currentInspections = [...inspections];
+    let currentHarvests = [...harvests];
+    let currentPlants = [...plants];
+    let currentTransactions = [...transactions];
+    let currentContacts = [...contacts];
+    const fixedIds = new Set();
+
     for (const issue of autoFixable) {
-      await handleFixIssue(issue);
+      const result = applyFixToData(
+        issue, currentBeds, currentTasks, currentInspections,
+        currentHarvests, currentPlants, currentTransactions, currentContacts
+      );
+      currentBeds = result.newBeds;
+      currentTasks = result.newTasks;
+      currentInspections = result.newInspections;
+      currentHarvests = result.newHarvests;
+      currentPlants = result.newPlants;
+      currentTransactions = result.newTransactions;
+      currentContacts = result.newContacts;
+      fixedIds.add(issue.id);
     }
+
+    setBeds(currentBeds);
+    setTasks(currentTasks);
+    setInspections(currentInspections);
+    setHarvests(currentHarvests);
+    setPlants(currentPlants);
+    setTransactions(currentTransactions);
+    setContacts(currentContacts);
+
+    setConsistencyIssues(prev => prev.filter(i => !fixedIds.has(i.id)));
+
+    setTimeout(() => {
+      runConsistencyCheck({
+        beds: currentBeds, tasks: currentTasks, inspections: currentInspections,
+        harvests: currentHarvests, plants: currentPlants, transactions: currentTransactions,
+        contacts: currentContacts, materials
+      });
+    }, 100);
   };
 
   const consistencyStats = useMemo(() =>
