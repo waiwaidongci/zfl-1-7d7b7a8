@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { CalendarDays, Clock, CheckCircle2, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, User, Heart, Map, Bug, Database } from 'lucide-react';
+import { CalendarDays, Clock, CheckCircle2, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, User, Heart, Map, Bug, Database, Wrench, AlertTriangle, Info, RefreshCw } from 'lucide-react';
 import './styles.css';
 
 import {
@@ -15,6 +15,13 @@ import { DistributionModal } from './components/DistributionModal';
 import { FloorPlanTab } from './components/FloorPlanTab';
 import { InspectionTab } from './components/InspectionTab';
 import { ArchivePanel } from './components/ArchivePanel';
+import { ConsistencyCheckCenter } from './components/ConsistencyCheckCenter';
+import {
+  runAllConsistencyChecks,
+  fixIssue as fixConsistencyIssue,
+  getConsistencyStats,
+  ISSUE_SEVERITY
+} from './utils/consistencyCheck';
 import {
   DISTRIBUTION_TYPES,
   PICKUP_CONFIRM_OVERDUE_DAYS,
@@ -33,7 +40,7 @@ import {
   checkPickupNoticeExists,
   findRelatedPickupNotice
 } from './utils/distribution';
-import { getOverdueReviewTasks } from './utils/statusSync';
+import { getOverdueReviewTasks, syncAllInspections } from './utils/statusSync';
 
 
 const today = new Date();
@@ -78,6 +85,9 @@ function App() {
   const [plantConsumptions, setPlantConsumptions] = useState([]);
   const [taskConsumptions, setTaskConsumptions] = useState({});
   const [expandedTaskIds, setExpandedTaskIds] = useState([]);
+  const [consistencyIssues, setConsistencyIssues] = useState([]);
+  const [isCheckingConsistency, setIsCheckingConsistency] = useState(false);
+  const [lastConsistencyCheck, setLastConsistencyCheck] = useState(null);
 
   const weekWater = beds.filter((bed) => {
     const days = (new Date(bed.nextWater) - today) / 86400000;
@@ -1005,6 +1015,161 @@ function App() {
     );
   };
 
+  const runConsistencyCheck = () => {
+    setIsCheckingConsistency(true);
+    setTimeout(() => {
+      const issues = runAllConsistencyChecks({
+        beds, tasks, inspections, harvests, plants, transactions, contacts, materials
+      });
+      setConsistencyIssues(issues);
+      setLastConsistencyCheck(new Date());
+      setIsCheckingConsistency(false);
+    }, 300);
+  };
+
+  const handleFixIssue = (issue) => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const data = { beds, tasks, inspections, harvests, plants, transactions, contacts, materials };
+        const setters = {
+          setBeds, setTasks, setInspections, setHarvests, setPlants,
+          setTransactions, setContacts
+        };
+
+        const { fixType, fixData } = issue;
+
+        switch (fixType) {
+          case 'clear_bed_warning':
+            setBeds(beds.map(b => b.id === fixData.bedId ? { ...b, warning: '' } : b));
+            break;
+
+          case 'remove_duplicate_tasks': {
+            const relatedTasks = tasks.filter(t =>
+              t.relatedInspectionId === fixData.inspectionId && t.taskType === fixData.taskType
+            );
+            const tasksToKeep = relatedTasks.slice(0, fixData.keepCount).map(t => t.id);
+            setTasks(tasks.filter(t =>
+              !(t.relatedInspectionId === fixData.inspectionId &&
+                t.taskType === fixData.taskType &&
+                !tasksToKeep.includes(t.id))
+            ));
+            break;
+          }
+
+          case 'adjust_distribution': {
+            const harvest = harvests.find(h => h.id === fixData.harvestId);
+            if (harvest && harvest.distribution) {
+              const ratio = fixData.maxAllowed / getDistributionTotal(harvest.distribution);
+              const adjustedDist = { ...harvest.distribution };
+
+              for (const key of Object.keys(adjustedDist)) {
+                if (key === 'distributionUpdatedAt' || key === 'selfPickupConfirmedAt') continue;
+                if (adjustedDist[key]) {
+                  const grams = parseWeight(adjustedDist[key]);
+                  const newGrams = Math.round(grams * ratio);
+                  adjustedDist[key] = newGrams >= 1000
+                    ? `${(newGrams / 1000).toFixed(1)}kg`
+                    : `${newGrams}g`;
+                }
+              }
+
+              setHarvests(harvests.map(h =>
+                h.id === fixData.harvestId ? { ...h, distribution: adjustedDist } : h
+              ));
+            }
+            break;
+          }
+
+          case 'update_bed_status':
+            setBeds(beds.map(b =>
+              b.id === fixData.bedId ? { ...b, status: fixData.newStatus } : b
+            ));
+            break;
+
+          case 'clear_transaction_relation':
+            setTransactions(transactions.map(t =>
+              t.id === fixData.transactionId
+                ? { ...t, relatedType: '', relatedId: '', relatedName: '' }
+                : t
+            ));
+            break;
+
+          case 'retry_sync_inspection': {
+            const result = syncAllInspections(inspections, beds, tasks);
+            setBeds(result.beds);
+            setTasks(result.tasks);
+            setInspections(result.inspections.map(i =>
+              i.id === fixData.inspectionId ? { ...i, syncStatus: 'synced', retryCount: 0 } : i
+            ));
+            break;
+          }
+
+          case 'send_pickup_notice': {
+            const harvest = harvests.find(h => h.id === fixData.harvestId);
+            if (harvest && harvest.distribution?.selfPickup) {
+              if (!checkPickupNoticeExists(contacts, harvest.id)) {
+                const contact = generatePickupNoticeContact(harvest, beds);
+                if (contact) {
+                  setContacts([contact, ...contacts]);
+                }
+              }
+            }
+            break;
+          }
+
+          case 'sync_pickup_confirmation': {
+            const now = new Date().toISOString();
+            setHarvests(harvests.map(h => {
+              if (h.id !== fixData.harvestId) return h;
+              return {
+                ...h,
+                distribution: {
+                  ...h.distribution,
+                  selfPickupConfirmedAt: now
+                }
+              };
+            }));
+            setContacts(contacts.map(c => {
+              if (c.id !== fixData.contactId) return c;
+              return {
+                ...c,
+                pickupStatus: 'confirmed',
+                pickupConfirmedAt: now,
+                note: c.note
+                  ? `${c.note} · 已于${now.slice(5, 16)}确认取菜`
+                  : `已于${now.slice(5, 16)}确认取菜`
+              };
+            }));
+            break;
+          }
+
+          default:
+            break;
+        }
+
+        setTimeout(() => {
+          runConsistencyCheck();
+          resolve(true);
+        }, 200);
+      }, 300);
+    });
+  };
+
+  const handleBatchFix = async (issuesToFix) => {
+    const autoFixable = issuesToFix.filter(i =>
+      !['handle_missing_material', 'review_inspection_status'].includes(i.fixType)
+    );
+
+    for (const issue of autoFixable) {
+      await handleFixIssue(issue);
+    }
+  };
+
+  const consistencyStats = useMemo(() =>
+    getConsistencyStats(consistencyIssues),
+    [consistencyIssues]
+  );
+
   return (
     <main>
       <header className="hero">
@@ -1016,6 +1181,16 @@ function App() {
           <span><Leaf size={18} />{activeCount}块认养中</span>
           <span><Droplets size={18} />{weekWater.length}块本周浇水</span>
           <span><TriangleAlert size={18} />{warnings.length}条异常</span>
+          {consistencyStats.total > 0 && (
+            <span
+              className="heroConsistencyStat"
+              onClick={() => setActiveTab('consistency')}
+              style={{ cursor: 'pointer', background: consistencyStats.critical > 0 ? 'rgba(138, 44, 44, 0.3)' : 'rgba(138, 90, 44, 0.3)' }}
+            >
+              <Wrench size={18} />{consistencyStats.total}项一致性问题
+              {consistencyStats.critical > 0 && <strong style={{ marginLeft: '4px' }}>({consistencyStats.critical}严重)</strong>}
+            </span>
+          )}
         </div>
       </header>
 
@@ -1046,6 +1221,34 @@ function App() {
         </button>
         <button className={activeTab === 'archive' ? 'tab active' : 'tab'} onClick={() => setActiveTab('archive')}>
           <Database size={16} />运营档案
+        </button>
+        <button
+          className={activeTab === 'consistency' ? 'tab active' : 'tab'}
+          onClick={() => {
+            setActiveTab('consistency');
+            if (consistencyIssues.length === 0) {
+              runConsistencyCheck();
+            }
+          }}
+          style={consistencyStats.total > 0 ? { position: 'relative' } : {}}
+        >
+          <Wrench size={16} />运营一致性
+          {consistencyStats.total > 0 && (
+            <span className="tabBadge" style={{
+              position: 'absolute',
+              top: '-4px',
+              right: '-4px',
+              background: consistencyStats.critical > 0 ? '#8a2c2c' : '#8a5a2c',
+              color: '#fff',
+              fontSize: '11px',
+              padding: '2px 6px',
+              borderRadius: '10px',
+              minWidth: '18px',
+              textAlign: 'center'
+            }}>
+              {consistencyStats.total}
+            </span>
+          )}
         </button>
       </nav>
 
@@ -2297,6 +2500,24 @@ function App() {
             }}
           />
         </section>
+      )}
+
+      {activeTab === 'consistency' && (
+        <ConsistencyCheckCenter
+          issues={consistencyIssues}
+          onRefresh={runConsistencyCheck}
+          onFixIssue={handleFixIssue}
+          onBatchFix={handleBatchFix}
+          isChecking={isCheckingConsistency}
+          lastChecked={lastConsistencyCheck}
+          beds={beds}
+          tasks={tasks}
+          inspections={inspections}
+          harvests={harvests}
+          plants={plants}
+          transactions={transactions}
+          contacts={contacts}
+        />
       )}
 
       {distEditingHarvest && (
