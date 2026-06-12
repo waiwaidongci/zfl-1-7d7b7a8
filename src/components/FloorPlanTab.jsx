@@ -1,9 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { Map, LayoutGrid, Filter, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { Map, LayoutGrid, Filter, RotateCcw, Search, Trash2, BarChart3 } from 'lucide-react';
 import { FloorGrid } from './FloorGrid';
 import { UnplacedBeds } from './UnplacedBeds';
 import { BedDetailModal } from './BedDetailModal';
+import { ZoneOperationsView } from './ZoneOperationsView';
 import { LEGEND_ITEMS, ZONE_CONFIG, getTotalCells } from '../config/floorPlan';
+import { buildZoneStats, filterBedsByZone, filterBedPlacementByZone } from '../utils/zoneStats';
 
 export function FloorPlanTab({
   beds, setBeds, bedPlacement, setBedPlacement,
@@ -15,6 +17,11 @@ export function FloorPlanTab({
   const [draggedBedId, setDraggedBedId] = useState(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [displayFilter, setDisplayFilter] = useState('all');
+  const [selectedZone, setSelectedZone] = useState(null);
+
+  const zoneStats = useMemo(() =>
+    buildZoneStats({ beds, bedPlacement, inspections, plants }),
+    [beds, bedPlacement, inspections, plants]);
 
   const handleBedDrop = (bedId, cellId) => {
     const existingBedId = Object.keys(bedPlacement).find(id => bedPlacement[id] === cellId);
@@ -51,12 +58,16 @@ export function FloorPlanTab({
     ));
   };
 
+  const zoneFilteredBeds = useMemo(() =>
+    filterBedsByZone(beds, selectedZone, bedPlacement),
+    [beds, selectedZone, bedPlacement]);
+
   const filteredBeds = useMemo(() => {
-    return beds.filter(bed => {
+    return zoneFilteredBeds.filter(bed => {
       if (statusFilter && bed.status !== statusFilter) return false;
       return true;
     });
-  }, [beds, statusFilter]);
+  }, [zoneFilteredBeds, statusFilter]);
 
   const displayFilteredBeds = useMemo(() => {
     if (displayFilter === 'all') return filteredBeds;
@@ -91,10 +102,14 @@ export function FloorPlanTab({
     };
   }, [beds, bedPlacement]);
 
-  const filteredBedPlacement = useMemo(() => {
-    if (displayFilter === 'all') return bedPlacement;
+  const zoneFilteredBedPlacement = useMemo(() =>
+    filterBedPlacementByZone(bedPlacement, selectedZone, beds),
+    [bedPlacement, selectedZone, beds]);
 
-    const placedIds = Object.keys(bedPlacement).filter(id => {
+  const filteredBedPlacement = useMemo(() => {
+    if (displayFilter === 'all') return zoneFilteredBedPlacement;
+
+    const placedIds = Object.keys(zoneFilteredBedPlacement).filter(id => {
       const bed = beds.find(b => b.id === id);
       if (!bed) return false;
       if (displayFilter === 'placed') return true;
@@ -104,14 +119,16 @@ export function FloorPlanTab({
 
     const filtered = {};
     placedIds.forEach(id => {
-      filtered[id] = bedPlacement[id];
+      filtered[id] = zoneFilteredBedPlacement[id];
     });
     return filtered;
-  }, [bedPlacement, beds, displayFilter]);
+  }, [zoneFilteredBedPlacement, beds, displayFilter]);
+
+  const unplacedSourceBeds = displayFilter === 'unplaced' ? displayFilteredBeds : zoneFilteredBeds;
 
   const gridBeds = displayFilter === 'all' || displayFilter === 'placed' || displayFilter === 'warning'
     ? displayFilteredBeds
-    : beds;
+    : zoneFilteredBeds;
 
   const handleResetLayout = () => {
     if (confirm('确定要重置所有菜畦的位置吗？此操作不可撤销。')) {
@@ -192,9 +209,15 @@ export function FloorPlanTab({
         </div>
       </div>
 
+      <ZoneOperationsView
+        zoneStats={zoneStats}
+        selectedZone={selectedZone}
+        onZoneSelect={setSelectedZone}
+      />
+
       <section className="workspace inspectionWorkspace">
         <UnplacedBeds
-          beds={displayFilter === 'unplaced' ? displayFilteredBeds : beds}
+          beds={displayFilter === 'unplaced' ? displayFilteredBeds : zoneFilteredBeds}
           bedPlacement={bedPlacement}
           selectedCellId={selectedCellId}
           draggedBedId={draggedBedId}
@@ -203,11 +226,17 @@ export function FloorPlanTab({
           setStatusFilter={setStatusFilter}
           onBedDrop={handleBedDrop}
           onBedClick={setSelectedBed}
+          selectedZone={selectedZone}
         />
 
         <div className="panel wide">
           <div className="toolbar">
             <h2><LayoutGrid size={16} />网格布局</h2>
+            {selectedZone && (
+              <span style={{ fontSize: '13px', color: '#2f613a', background: '#e8f5e3', padding: '4px 10px', borderRadius: '6px' }}>
+                区域筛选：{ZONE_CONFIG.find(z => z.id === selectedZone)?.name || selectedZone}区
+              </span>
+            )}
             {selectedCellId && (
               <span style={{ fontSize: '13px', color: '#2f613a', background: '#e8f5e3', padding: '4px 10px', borderRadius: '6px' }}>
                 已选中：{selectedCellId} - 点击未放置菜畦快速放置，或直接拖拽
@@ -224,6 +253,7 @@ export function FloorPlanTab({
             setDraggedBedId={setDraggedBedId}
             selectedCellId={selectedCellId}
             setSelectedCellId={setSelectedCellId}
+            selectedZone={selectedZone}
           />
         </div>
       </section>
@@ -240,6 +270,7 @@ export function FloorPlanTab({
           onClose={() => setSelectedBed(null)}
           onQuickWater={handleQuickWater}
           onAddInspection={onAddInspection}
+          bedPlacement={bedPlacement}
         />
       )}
 

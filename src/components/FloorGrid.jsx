@@ -4,7 +4,8 @@ import { ZONE_CONFIG, getWaterUrgency, STATUS_STYLES, generateGridCells } from '
 
 export function FloorGrid({
   beds, bedPlacement, onBedDrop, onBedClick,
-  draggedBedId, setDraggedBedId, selectedCellId, setSelectedCellId
+  draggedBedId, setDraggedBedId, selectedCellId, setSelectedCellId,
+  selectedZone
 }) {
   const [dragOverCell, setDragOverCell] = useState(null);
 
@@ -62,9 +63,10 @@ export function FloorGrid({
         const cells = generateGridCells(zone);
         const usedCells = cells.filter(c => bedByCell[c.id]).length;
         const totalCells = cells.length;
+        const isFiltered = selectedZone && zone.id === selectedZone;
 
         return (
-          <div key={zone.id} className="zoneSection">
+          <div key={zone.id} className={`zoneSection ${isFiltered ? 'zoneFiltered' : ''} ${selectedZone && !isFiltered ? 'zoneDimmed' : ''}`}>
             <div className="zoneHeader">
               <h2>{zone.name}</h2>
               <span className="zoneDescription">{zone.description}</span>

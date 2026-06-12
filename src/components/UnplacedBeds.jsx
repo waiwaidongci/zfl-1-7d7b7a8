@@ -1,11 +1,12 @@
 import React from 'react';
-import { Sprout, Filter } from 'lucide-react';
+import { Sprout, Filter, MapPin } from 'lucide-react';
+import { ZONE_CONFIG } from '../config/floorPlan';
 
 export function UnplacedBeds({
   beds, bedPlacement, selectedCellId,
   draggedBedId, setDraggedBedId,
   statusFilter, setStatusFilter,
-  onBedDrop, onBedClick
+  onBedDrop, onBedClick, selectedZone
 }) {
   const placedBedIds = Object.keys(bedPlacement);
   const unplacedBeds = beds.filter(bed => !placedBedIds.includes(bed.id));
@@ -36,7 +37,14 @@ export function UnplacedBeds({
   return (
     <div className="panel">
       <div className="toolbar">
-        <h2><Sprout size={16} />未放置菜畦</h2>
+        <h2 style={{ gap: '6px' }}>
+          <Sprout size={16} />未放置菜畦
+          {selectedZone && (
+            <span style={{ fontSize: '12px', color: ZONE_CONFIG.find(z => z.id === selectedZone)?.color || '#2f613a', background: '#e8f5e3', padding: '2px 8px', borderRadius: '4px', fontWeight: 'normal' }}>
+              <MapPin size={10} style={{ display: 'inline', verticalAlign: 'middle' }} /> {ZONE_CONFIG.find(z => z.id === selectedZone)?.name || selectedZone}
+            </span>
+          )}
+        </h2>
         <div className="toolbarActions">
           <select
             className="filterSelect"

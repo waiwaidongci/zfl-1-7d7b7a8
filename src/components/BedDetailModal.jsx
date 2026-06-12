@@ -2,15 +2,15 @@ import React, { useMemo } from 'react';
 import {
   X, User, Phone, CalendarDays, Droplets, TriangleAlert,
   Users, MessageCircle, Wheat, Package, Sprout, AlertCircle,
-  CheckCircle2, Clock, Bug, Search
+  CheckCircle2, Clock, Bug, Search, MapPin
 } from 'lucide-react';
-import { getWaterUrgency, STATUS_STYLES } from '../config/floorPlan';
+import { getWaterUrgency, STATUS_STYLES, getZoneOfBed } from '../config/floorPlan';
 import { getBedInspectionSummary } from '../utils/statusSync';
 import { getAbnormalTypeInfo } from '../data/inspectionData';
 
 export function BedDetailModal({
   bed, plants, contacts, harvests, transactions, tasks,
-  inspections, onClose, onQuickWater, onAddInspection
+  inspections, onClose, onQuickWater, onAddInspection, bedPlacement
 }) {
   if (!bed) return null;
 
@@ -64,6 +64,10 @@ export function BedDetailModal({
     getBedInspectionSummary(bed.name, inspections),
     [inspections, bed.name]);
 
+  const bedZone = useMemo(() =>
+    getZoneOfBed(bed, bedPlacement),
+    [bed, bedPlacement]);
+
   const statusStyle = STATUS_STYLES[bed.status] || STATUS_STYLES['空闲'];
 
   return (
@@ -89,6 +93,12 @@ export function BedDetailModal({
           )}
 
           <div className="bedDetailGrid">
+            <div className="bedDetailItem">
+              <span className="bedDetailLabel"><MapPin size={14} />所属区域</span>
+              <span className="bedDetailValue" style={{ color: bedZone ? bedZone.color : '#71806a', fontWeight: 500 }}>
+                {bedZone ? `${bedZone.name} · ${bedZone.description}` : '未分配区域'}
+              </span>
+            </div>
             <div className="bedDetailItem">
               <span className="bedDetailLabel"><User size={14} />认养人</span>
               <span className="bedDetailValue">{bed.adopter || '待认养'}</span>

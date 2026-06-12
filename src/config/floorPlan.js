@@ -89,3 +89,26 @@ export const generateGridCells = (zone) => {
 export const getTotalCells = () => {
   return ZONE_CONFIG.reduce((sum, zone) => sum + zone.rows * zone.cols, 0);
 };
+
+export const getZoneById = (zoneId) => {
+  return ZONE_CONFIG.find(z => z.id === zoneId) || null;
+};
+
+export const getZoneFromCellId = (cellId) => {
+  const parsed = parseCellCoordinate(cellId);
+  return parsed ? getZoneById(parsed.zoneId) : null;
+};
+
+export const getZoneFromBedName = (bedName) => {
+  if (!bedName) return null;
+  const match = bedName.match(/^([A-Z])/);
+  return match ? getZoneById(match[1]) : null;
+};
+
+export const getZoneOfBed = (bed, bedPlacement) => {
+  if (!bed) return null;
+  if (bedPlacement && bedPlacement[bed.id]) {
+    return getZoneFromCellId(bedPlacement[bed.id]);
+  }
+  return getZoneFromBedName(bed.name);
+};
