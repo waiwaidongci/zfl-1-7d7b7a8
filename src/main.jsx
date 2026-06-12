@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { CalendarDays, Clock, CheckCircle2, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, User, Heart, Map, Bug } from 'lucide-react';
+import { CalendarDays, Clock, CheckCircle2, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, User, Heart, Map, Bug, Database } from 'lucide-react';
 import './styles.css';
 
 import {
@@ -14,6 +14,7 @@ import { DistributionTab } from './components/DistributionTab';
 import { DistributionModal } from './components/DistributionModal';
 import { FloorPlanTab } from './components/FloorPlanTab';
 import { InspectionTab } from './components/InspectionTab';
+import { ArchivePanel } from './components/ArchivePanel';
 import {
   DISTRIBUTION_TYPES,
   PICKUP_CONFIRM_OVERDUE_DAYS,
@@ -1042,6 +1043,9 @@ function App() {
         </button>
         <button className={activeTab === 'inspection' ? 'tab active' : 'tab'} onClick={() => setActiveTab('inspection')}>
           <Bug size={16} />巡检记录
+        </button>
+        <button className={activeTab === 'archive' ? 'tab active' : 'tab'} onClick={() => setActiveTab('archive')}>
+          <Database size={16} />运营档案
         </button>
       </nav>
 
@@ -2270,6 +2274,29 @@ function App() {
           transactions={transactions}
           setTransactions={setTransactions}
         />
+      )}
+
+      {activeTab === 'archive' && (
+        <section className="archiveTabWrap">
+          <ArchivePanel
+            currentState={{
+              beds, harvests, tasks, schedules, contacts,
+              plants, materials, transactions, inspections, bedPlacement
+            }}
+            onImportComplete={(merged) => {
+              setBeds(merged.beds);
+              setHarvests(merged.harvests);
+              setTasks(merged.tasks);
+              setSchedules(merged.schedules);
+              setContacts(merged.contacts);
+              setPlants(merged.plants);
+              setMaterials(merged.materials);
+              setTransactions(merged.transactions);
+              setInspections(merged.inspections);
+              setBedPlacement(merged.bedPlacement);
+            }}
+          />
+        </section>
       )}
 
       {distEditingHarvest && (
