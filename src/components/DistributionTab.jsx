@@ -33,7 +33,8 @@ const typeIcons = {
 
 export function DistributionTab({
   harvests, setHarvests, harvestOptions, harvestForm, setHarvestForm, addHarvest,
-  beds, contacts, setContacts
+  beds, contacts, setContacts,
+  materials, harvestConsumptions, setHarvestConsumptions, renderConsumptionSuggestions
 }) {
   const [editingHarvest, setEditingHarvest] = useState(null);
   const [statusFilter, setStatusFilter] = useState('');
@@ -275,7 +276,14 @@ export function DistributionTab({
       <section className="workspace">
         <form onSubmit={addHarvest} className="panel">
           <h2><Wheat size={18} />新增采摘记录</h2>
-          <select value={harvestForm.bed} onChange={(e) => setHarvestForm({ ...harvestForm, bed: e.target.value })}>
+          <select value={harvestForm.bed} onChange={(e) => {
+            const bedName = e.target.value;
+            const matchedBed = beds.find(b => b.name === bedName);
+            const bedCrop = matchedBed && matchedBed.crop && matchedBed.crop !== '待播种'
+              ? matchedBed.crop
+              : harvestForm.crop;
+            setHarvestForm({ ...harvestForm, bed: bedName, crop: bedCrop });
+          }}>
             <option value="">选择菜畦</option>
             {harvestOptions.map((name) => <option key={name}>{name}</option>)}
           </select>
@@ -283,6 +291,11 @@ export function DistributionTab({
           <input placeholder="重量（如 1.4kg 或 300g）" value={harvestForm.weight} onChange={(e) => setHarvestForm({ ...harvestForm, weight: e.target.value })} />
           <input type="date" value={harvestForm.date} onChange={(e) => setHarvestForm({ ...harvestForm, date: e.target.value })} />
           <input placeholder="备注" value={harvestForm.note} onChange={(e) => setHarvestForm({ ...harvestForm, note: e.target.value })} />
+          {renderConsumptionSuggestions && materials && (
+            <div style={{ margin: '8px 0' }}>
+              {renderConsumptionSuggestions({ type: 'harvest' }, harvestConsumptions, setHarvestConsumptions)}
+            </div>
+          )}
           <button>保存采摘</button>
         </form>
 

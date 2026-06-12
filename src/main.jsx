@@ -97,16 +97,21 @@ function App() {
     event.preventDefault();
     if (!harvestForm.bed.trim() || !harvestForm.crop.trim()) return;
     const newId = crypto.randomUUID();
-    setHarvests([{ id: newId, ...harvestForm, distribution: null }, ...harvests]);
+    const matchedBed = beds.find(b => b.name === harvestForm.bed);
+    const effectiveCrop = matchedBed && matchedBed.crop && matchedBed.crop !== '待播种'
+      ? matchedBed.crop
+      : harvestForm.crop;
+    const effectiveBedName = matchedBed ? matchedBed.name : harvestForm.bed;
+    setHarvests([{ id: newId, ...harvestForm, bed: effectiveBedName, crop: effectiveCrop, distribution: null }, ...harvests]);
     if (harvestConsumptions.length > 0) {
       const newTransactions = harvestConsumptions.filter(c => c.quantity > 0).map(c => ({
         ...c,
         id: crypto.randomUUID(),
         relatedType: 'harvest',
         relatedId: newId,
-        relatedName: `${harvestForm.crop} ${harvestForm.weight}`,
-        bedName: harvestForm.bed,
-        crop: harvestForm.crop
+        relatedName: `${effectiveCrop} ${harvestForm.weight}`,
+        bedName: effectiveBedName,
+        crop: effectiveCrop
       }));
       if (newTransactions.length > 0) {
         setTransactions([...newTransactions, ...transactions]);
@@ -1251,7 +1256,14 @@ function App() {
           <section className="workspace bottom">
             <form onSubmit={addHarvest} className="panel">
               <h2>新增采摘记录</h2>
-              <select value={harvestForm.bed} onChange={(e) => setHarvestForm({ ...harvestForm, bed: e.target.value })}>
+              <select value={harvestForm.bed} onChange={(e) => {
+                const bedName = e.target.value;
+                const matchedBed = beds.find(b => b.name === bedName);
+                const bedCrop = matchedBed && matchedBed.crop && matchedBed.crop !== '待播种'
+                  ? matchedBed.crop
+                  : harvestForm.crop;
+                setHarvestForm({ ...harvestForm, bed: bedName, crop: bedCrop });
+              }}>
                 <option value="">选择菜畦</option>
                 {harvestOptions.map((name) => <option key={name}>{name}</option>)}
               </select>
@@ -2215,6 +2227,10 @@ function App() {
           beds={beds}
           contacts={contacts}
           setContacts={setContacts}
+          materials={materials}
+          harvestConsumptions={harvestConsumptions}
+          setHarvestConsumptions={setHarvestConsumptions}
+          renderConsumptionSuggestions={renderConsumptionSuggestions}
         />
       )}
 
