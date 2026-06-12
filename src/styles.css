@@ -1791,3 +1791,74 @@ textarea { width: 100%; border: 1px solid #cdd8c3; border-radius: 8px; padding: 
     grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
   }
 }
+
+.followupPlanSection {
+  background: #f6f8f2;
+  border: 1px solid #e0ead5;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-top: -4px;
+}
+.followupTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #2f613a;
+  font-weight: 600;
+  font-size: 14px;
+}
+.followupInfo {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  margin-top: 8px;
+  background: #f6f8f2;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.followupInfoItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #55624e;
+}
+.followupStatusTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.followupStatusTag.completed {
+  background: #d5edcc;
+  color: #2f613a;
+}
+.followupStatusTag.pending {
+  background: #e8f0fa;
+  color: #2c5f8a;
+}
+.followupStatusTag.overdue {
+  background: #fbe3e3;
+  color: #8a2c2c;
+  animation: pulse-overdue 2s ease-in-out infinite;
+}
+.followupStatusTag.no_plan {
+  background: #fef0d0;
+  color: #8a6a2c;
+}
+@keyframes pulse-overdue {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.2); }
+  50% { box-shadow: 0 0 0 4px rgba(192, 57, 43, 0); }
+}
+.reviewOverdueWarning {
+  border-left: 4px solid #c0392b;
+  background: linear-gradient(90deg, #fbe3e3 0%, transparent 100%);
+  color: #8a2c2c;
+}
+.reviewOverdueWarning span {
+  color: #6b4534;
+}

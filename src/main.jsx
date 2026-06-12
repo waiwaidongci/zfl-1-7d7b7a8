@@ -31,6 +31,7 @@ import {
   checkPickupNoticeExists,
   findRelatedPickupNotice
 } from './utils/distribution';
+import { getOverdueReviewTasks } from './utils/statusSync';
 
 
 const today = new Date();
@@ -726,19 +727,30 @@ function App() {
             </article>
             <article>
               <h2>异常提醒</h2>
-              {warnings.length === 0 && getAllWarnings(harvests).length === 0
-                ? <p className="muted">暂无异常</p>
-                : <>
-                    {warnings.map((bed) => <p className="row alert" key={bed.id}><TriangleAlert size={16} />{bed.name}<span>{bed.warning}</span></p>)}
-                    {getAllWarnings(harvests).map((w) => (
-                      <p className={`row alert ${w.type === 'critical' ? 'critical' : w.type === 'pickupPending' ? 'pickupPendingWarning' : 'harvestWarning'}`} key={w.id}>
-                        {w.type === 'critical' ? <AlertCircle size={16} /> : <Clock size={16} />}
-                        {w.label}（{w.bed}）
-                        <span>{w.message}</span>
-                      </p>
-                    ))}
-                  </>
-              }
+              {(() => {
+                const harvestWarnings = getAllWarnings(harvests);
+                const overdueReviews = getOverdueReviewTasks(tasks, inspections);
+                const totalWarnings = warnings.length + harvestWarnings.length + overdueReviews.length;
+                return totalWarnings === 0
+                  ? <p className="muted">暂无异常</p>
+                  : <>
+                      {warnings.map((bed) => <p className="row alert" key={bed.id}><TriangleAlert size={16} />{bed.name}<span>{bed.warning}</span></p>)}
+                      {harvestWarnings.map((w) => (
+                        <p className={`row alert ${w.type === 'critical' ? 'critical' : w.type === 'pickupPending' ? 'pickupPendingWarning' : 'harvestWarning'}`} key={w.id}>
+                          {w.type === 'critical' ? <AlertCircle size={16} /> : <Clock size={16} />}
+                          {w.label}（{w.bed}）
+                          <span>{w.message}</span>
+                        </p>
+                      ))}
+                      {overdueReviews.map((w) => (
+                        <p className="row alert reviewOverdueWarning" key={w.id}>
+                          <AlertCircle size={16} />
+                          {w.label}
+                          <span>{w.message}</span>
+                        </p>
+                      ))}
+                    </>
+              })()}
             </article>
           </section>
 

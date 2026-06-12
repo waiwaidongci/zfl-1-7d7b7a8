@@ -2,10 +2,11 @@ import React, { useMemo } from 'react';
 import {
   X, User, Phone, CalendarDays, Droplets, TriangleAlert,
   Users, MessageCircle, Wheat, Package, Sprout, AlertCircle,
-  CheckCircle2, Clock, Bug, Search, MapPin
+  CheckCircle2, Clock, Bug, Search, MapPin, Calendar,
+  AlertTriangle
 } from 'lucide-react';
 import { getWaterUrgency, STATUS_STYLES, getZoneOfBed } from '../config/floorPlan';
-import { getBedInspectionSummary } from '../utils/statusSync';
+import { getBedInspectionSummary, getFollowupStatus } from '../utils/statusSync';
 import { getAbnormalTypeInfo } from '../data/inspectionData';
 
 export function BedDetailModal({
@@ -61,8 +62,8 @@ export function BedDetailModal({
     [tasks, bed.name]);
 
   const inspectionSummary = useMemo(() =>
-    getBedInspectionSummary(bed.name, inspections),
-    [inspections, bed.name]);
+    getBedInspectionSummary(bed.name, inspections, tasks),
+    [inspections, bed.name, tasks]);
 
   const bedZone = useMemo(() =>
     getZoneOfBed(bed, bedPlacement),
@@ -131,6 +132,16 @@ export function BedDetailModal({
                 {inspectionSummary.unresolvedCount > 0 &&
                   <span style={{ color: '#8b3f23', marginLeft: '6px' }}>
                     {inspectionSummary.unresolvedCount}项待处理
+                  </span>
+                }
+                {inspectionSummary.pendingReviewCount > 0 &&
+                  <span style={{ color: '#8a6a2c', marginLeft: '6px' }}>
+                    {inspectionSummary.pendingReviewCount}项待复查
+                  </span>
+                }
+                {inspectionSummary.overdueReviewCount > 0 &&
+                  <span style={{ color: '#8b3f23', marginLeft: '6px' }}>
+                    ⚠ {inspectionSummary.overdueReviewCount}项复查逾期
                   </span>
                 }
               </span>
@@ -259,6 +270,7 @@ export function BedDetailModal({
               <h4><Bug size={16} />近期巡检</h4>
               {inspectionSummary.recent.map(insp => {
                 const abnormal = getAbnormalTypeInfo(insp.abnormalType);
+                const followupStatus = getFollowupStatus(insp, tasks);
                 return (
                   <div key={insp.id} className="bedDetailPlant">
                     <div className="bedDetailPlantHeader">
@@ -272,10 +284,34 @@ export function BedDetailModal({
                     <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#3c4d38' }}>
                       {insp.note}
                     </p>
-                    <span className={`syncStatusTag ${insp.syncStatus === 'synced' ? 'success' : 'warning'}`}
-                      style={{ marginTop: '6px', display: 'inline-flex' }}>
-                      {insp.syncStatus === 'synced' ? '已同步' : '待同步'}
-                    </span>
+                    {insp.followupDate && (
+                      <div style={{ marginTop: '6px', display: 'flex', gap: '12px', flexWrap: 'wrap', fontSize: '12px', color: '#55624e' }}>
+                        <span>
+                          <Calendar size={10} style={{ marginRight: '4px', verticalAlign: '-2px' }} />
+                          复查：{insp.followupDate}
+                        </span>
+                        {insp.followupOwner && (
+                          <span>
+                            <User size={10} style={{ marginRight: '4px', verticalAlign: '-2px' }} />
+                            负责人：{insp.followupOwner}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginTop: '6px' }}>
+                      <span className={`syncStatusTag ${insp.syncStatus === 'synced' ? 'success' : 'warning'}`}
+                        style={{ display: 'inline-flex' }}>
+                        {insp.syncStatus === 'synced' ? '已同步' : '待同步'}
+                      </span>
+                      {followupStatus.key !== 'none' && followupStatus.key !== 'not_required' && (
+                        <span className={`followupStatusTag ${followupStatus.key} ${followupStatus.overdue ? 'overdue' : ''}`}>
+                          {followupStatus.key === 'completed' && <CheckCircle2 size={10} />}
+                          {followupStatus.overdue && <AlertTriangle size={10} />}
+                          {followupStatus.key === 'pending' && <Clock size={10} />}
+                          {followupStatus.label}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })}

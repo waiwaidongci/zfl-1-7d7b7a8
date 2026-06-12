@@ -17,10 +17,10 @@ export const ABNORMAL_TYPES = [
 ];
 
 export const TREATMENT_RESULTS = [
-  { key: 'resolved', label: '已解决', severity: 'success', clearsWarning: true, createsTask: false },
-  { key: 'needs_followup', label: '需跟进', severity: 'warning', clearsWarning: false, createsTask: true },
-  { key: 'escalated', label: '已上报', severity: 'danger', clearsWarning: false, createsTask: true },
-  { key: 'no_action', label: '无需处理', severity: 'muted', clearsWarning: true, createsTask: false }
+  { key: 'resolved', label: '已解决', severity: 'success', clearsWarning: true, createsTask: false, needsFollowupPlan: false },
+  { key: 'needs_followup', label: '需跟进', severity: 'warning', clearsWarning: false, createsTask: true, needsFollowupPlan: true },
+  { key: 'escalated', label: '已上报', severity: 'danger', clearsWarning: false, createsTask: true, needsFollowupPlan: true },
+  { key: 'no_action', label: '无需处理', severity: 'muted', clearsWarning: true, createsTask: false, needsFollowupPlan: false }
 ];
 
 export const getAbnormalTypeInfo = (key) => {
@@ -43,6 +43,9 @@ export const seedInspections = [
     inspector: '李雨晴',
     date: iso(0),
     time: '10:30',
+    followupDate: iso(3),
+    followupOwner: '王建国',
+    followupTaskId: null,
     syncStatus: 'pending',
     retryCount: 0,
     createdAt: new Date().toISOString()
@@ -58,6 +61,9 @@ export const seedInspections = [
     inspector: '张明远',
     date: iso(-1),
     time: '16:45',
+    followupDate: null,
+    followupOwner: null,
+    followupTaskId: null,
     syncStatus: 'synced',
     retryCount: 0,
     createdAt: new Date(Date.now() - 86400000).toISOString()

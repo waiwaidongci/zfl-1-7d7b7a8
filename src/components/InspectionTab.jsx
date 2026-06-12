@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Bug, Search, Plus, Save, FileText, Clock, CheckCircle2,
   AlertTriangle, RefreshCw, Trash2, Image as ImageIcon,
-  Trash, X
+  Trash, X, Calendar, User
 } from 'lucide-react';
 import {
   ABNORMAL_TYPES, TREATMENT_RESULTS,
@@ -11,7 +11,9 @@ import {
 import {
   syncAllInspections, updateInspectionSyncStatus,
   getInspectionSyncStats, generateTaskFromInspection,
-  generateWarningFromInspection
+  generateWarningFromInspection, generateReviewTaskFromInspection,
+  getFollowupStatus, TASK_TYPE_INSPECTION, TASK_TYPE_REVIEW,
+  findTaskByInspectionAndType
 } from '../utils/statusSync';
 
 const DRAFT_KEY = 'zfl-1-inspection-draft';
@@ -29,7 +31,9 @@ export function InspectionTab({
     photos: [],
     inspector: '',
     date: iso(0),
-    time: new Date().toTimeString().slice(0, 5)
+    time: new Date().toTimeString().slice(0, 5),
+    followupDate: '',
+    followupOwner: ''
   });
 
   useEffect(() => {
@@ -143,15 +147,24 @@ export function InspectionTab({
     const abnormal = getAbnormalTypeInfo(form.abnormalType);
     const treatment = getTreatmentResultInfo(form.treatmentResult);
 
+    const finalForm = { ...form };
+    if (!treatment.needsFollowupPlan) {
+      finalForm.followupDate = '';
+      finalForm.followupOwner = '';
+    }
+
     const newInspection = {
       id: crypto.randomUUID(),
-      ...form,
+      ...finalForm,
+      followupTaskId: null,
       syncStatus: 'pending',
       retryCount: 0,
       createdAt: new Date().toISOString()
     };
 
-    setInspections([newInspection, ...inspections]);
+    let updatedInspections = [newInspection, ...inspections];
+    let updatedTasks = [...tasks];
+
     localStorage.removeItem(DRAFT_KEY);
     setRecoveredDraft(null);
 
@@ -164,7 +177,9 @@ export function InspectionTab({
       photos: [],
       inspector: '',
       date: iso(0),
-      time: new Date().toTimeString().slice(0, 5)
+      time: new Date().toTimeString().slice(0, 5),
+      followupDate: '',
+      followupOwner: ''
     });
 
     if (treatment.clearsWarning) {
@@ -181,15 +196,37 @@ export function InspectionTab({
     }
 
     if (treatment.createsTask) {
-      const newTask = generateTaskFromInspection(newInspection);
-      if (newTask) {
-        setTasks([newTask, ...tasks]);
+      const taskExists = findTaskByInspectionAndType(updatedTasks, newInspection.id, TASK_TYPE_INSPECTION);
+      if (!taskExists) {
+        const newTask = generateTaskFromInspection(newInspection);
+        if (newTask) {
+          updatedTasks = [newTask, ...updatedTasks];
+        }
       }
     }
 
-    setInspections(prev => prev.map(i =>
-      i.id === newInspection.id ? { ...i, syncStatus: 'synced', syncedAt: new Date().toISOString() } : i
-    ));
+    if (treatment.needsFollowupPlan && newInspection.followupDate) {
+      const reviewTaskExists = findTaskByInspectionAndType(updatedTasks, newInspection.id, TASK_TYPE_REVIEW);
+      if (!reviewTaskExists) {
+        const reviewTask = generateReviewTaskFromInspection(newInspection);
+        if (reviewTask) {
+          updatedTasks = [reviewTask, ...updatedTasks];
+          newInspection.followupTaskId = reviewTask.id;
+        }
+      }
+    }
+
+    setTasks(updatedTasks);
+
+    updatedInspections = updatedInspections.map(i =>
+      i.id === newInspection.id ? {
+        ...i,
+        followupTaskId: newInspection.followupTaskId,
+        syncStatus: 'synced',
+        syncedAt: new Date().toISOString()
+      } : i
+    );
+    setInspections(updatedInspections);
   };
 
   const handleSaveDraft = () => {
@@ -215,13 +252,13 @@ export function InspectionTab({
     setIsSyncing(true);
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    const { beds: updatedBeds, tasks: updatedTasks, syncResults } =
+    const { beds: updatedBeds, tasks: updatedTasks, inspections: syncedInspections, syncResults } =
       syncAllInspections(inspections, beds, tasks);
 
     setBeds(updatedBeds);
     setTasks(updatedTasks);
 
-    let updatedInspections = [...inspections];
+    let updatedInspections = [...syncedInspections];
     for (const result of syncResults) {
       if (result.status === 'synced') {
         updatedInspections = updateInspectionSyncStatus(
@@ -242,6 +279,9 @@ export function InspectionTab({
   const handleRetrySync = (inspectionId) => {
     setIsSyncing(true);
     setTimeout(() => {
+      let updatedTasks = [...tasks];
+      let updatedFollowupTaskId = null;
+
       setInspections(prev => prev.map(i => {
         if (i.id !== inspectionId) return i;
         const treatment = getTreatmentResultInfo(i.treatmentResult);
@@ -260,22 +300,38 @@ export function InspectionTab({
         }
 
         if (treatment.createsTask) {
-          const taskExists = tasks.some(t => t.relatedInspectionId === i.id);
+          const taskExists = findTaskByInspectionAndType(updatedTasks, i.id, TASK_TYPE_INSPECTION);
           if (!taskExists) {
             const newTask = generateTaskFromInspection(i);
             if (newTask) {
-              setTasks([newTask, ...tasks]);
+              updatedTasks = [newTask, ...updatedTasks];
             }
+          }
+        }
+
+        if (treatment.needsFollowupPlan && i.followupDate) {
+          const existingReviewTask = findTaskByInspectionAndType(updatedTasks, i.id, TASK_TYPE_REVIEW);
+          if (!existingReviewTask) {
+            const reviewTask = generateReviewTaskFromInspection(i);
+            if (reviewTask) {
+              updatedTasks = [reviewTask, ...updatedTasks];
+              updatedFollowupTaskId = reviewTask.id;
+            }
+          } else {
+            updatedFollowupTaskId = existingReviewTask.id;
           }
         }
 
         return {
           ...i,
+          followupTaskId: updatedFollowupTaskId || i.followupTaskId,
           syncStatus: 'synced',
           retryCount: 0,
           syncedAt: new Date().toISOString()
         };
       }));
+
+      setTasks(updatedTasks);
       setIsSyncing(false);
     }, 300);
   };
@@ -382,7 +438,14 @@ export function InspectionTab({
                     key={result.key}
                     type="button"
                     className={`treatmentResultBtn ${form.treatmentResult === result.key ? `active ${result.severity}` : ''}`}
-                    onClick={() => setForm({ ...form, treatmentResult: result.key })}
+                    onClick={() => {
+                      const newForm = { ...form, treatmentResult: result.key };
+                      if (!result.needsFollowupPlan) {
+                        newForm.followupDate = '';
+                        newForm.followupOwner = '';
+                      }
+                      setForm(newForm);
+                    }}
                   >
                     {result.label}
                   </button>
@@ -400,6 +463,43 @@ export function InspectionTab({
                 </p>
               )}
             </div>
+
+            {form.treatmentResult && getTreatmentResultInfo(form.treatmentResult).needsFollowupPlan && (
+              <div className="followupPlanSection">
+                <div className="formField">
+                  <label className="fieldLabel">
+                    <span className="followupTitle">
+                      <Calendar size={16} />
+                      复查计划
+                    </span>
+                  </label>
+                  <div className="grid2">
+                    <div className="formField" style={{ marginBottom: 0 }}>
+                      <label className="fieldLabel">复查日期</label>
+                      <input
+                        type="date"
+                        value={form.followupDate}
+                        min={iso(0)}
+                        onChange={(e) => setForm({ ...form, followupDate: e.target.value })}
+                      />
+                    </div>
+                    <div className="formField" style={{ marginBottom: 0 }}>
+                      <label className="fieldLabel">复查负责人</label>
+                      <input
+                        placeholder="负责人姓名"
+                        value={form.followupOwner}
+                        onChange={(e) => setForm({ ...form, followupOwner: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  {form.followupDate && (
+                    <p className="fieldHint">
+                      ✓ 保存后将自动生成复查任务，任务完成后此处会标记复查已完成
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="formField">
               <label className="fieldLabel">巡检记录</label>
@@ -520,6 +620,7 @@ export function InspectionTab({
               {filteredInspections.map(inspection => {
                 const abnormal = getAbnormalTypeInfo(inspection.abnormalType);
                 const treatment = getTreatmentResultInfo(inspection.treatmentResult);
+                const followupStatus = getFollowupStatus(inspection, tasks);
                 return (
                   <div
                     key={inspection.id}
@@ -534,6 +635,14 @@ export function InspectionTab({
                         <span className={`abnormalTag ${treatment.severity}`} style={{ opacity: 0.85 }}>
                           {treatment.label}
                         </span>
+                        {followupStatus.key !== 'none' && followupStatus.key !== 'not_required' && (
+                          <span className={`followupStatusTag ${followupStatus.key} ${followupStatus.overdue ? 'overdue' : ''}`}>
+                            {followupStatus.key === 'completed' && <CheckCircle2 size={12} />}
+                            {followupStatus.overdue && <AlertTriangle size={12} />}
+                            {followupStatus.key === 'pending' && <Clock size={12} />}
+                            {followupStatus.label}
+                          </span>
+                        )}
                       </div>
                       <div className="inspectionCardSync">
                         <span style={{ fontSize: '12px', color: '#71806a' }}>
@@ -552,6 +661,20 @@ export function InspectionTab({
                     </div>
                     <div className="inspectionCardBody">
                       <p className="inspectionNote">{inspection.note}</p>
+                      {inspection.followupDate && treatment.needsFollowupPlan && (
+                        <div className="followupInfo">
+                          <div className="followupInfoItem">
+                            <Calendar size={12} />
+                            <span>复查日期：{inspection.followupDate}</span>
+                          </div>
+                          {inspection.followupOwner && (
+                            <div className="followupInfoItem">
+                              <User size={12} />
+                              <span>负责人：{inspection.followupOwner}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       {inspection.photos && inspection.photos.length > 0 && (
                         <div className="photoPlaceholderGrid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginTop: '8px' }}>
                           {inspection.photos.slice(0, 4).map(photo => (

@@ -1,5 +1,8 @@
 import { getAbnormalTypeInfo, getTreatmentResultInfo, ABNORMAL_TYPES } from '../data/inspectionData';
 
+export const TASK_TYPE_INSPECTION = 'inspection_followup';
+export const TASK_TYPE_REVIEW = 'review_plan';
+
 export const generateWarningFromInspection = (inspection) => {
   const abnormal = getAbnormalTypeInfo(inspection.abnormalType);
   const treatment = getTreatmentResultInfo(inspection.treatmentResult);
@@ -24,6 +27,25 @@ export const generateTaskFromInspection = (inspection) => {
     due: getTaskDueDate(abnormal.severity),
     done: false,
     relatedInspectionId: inspection.id,
+    taskType: TASK_TYPE_INSPECTION,
+    createdAt: new Date().toISOString()
+  };
+};
+
+export const generateReviewTaskFromInspection = (inspection) => {
+  const treatment = getTreatmentResultInfo(inspection.treatmentResult);
+  if (!treatment.needsFollowupPlan || !inspection.followupDate) return null;
+
+  const abnormal = getAbnormalTypeInfo(inspection.abnormalType);
+
+  return {
+    id: crypto.randomUUID(),
+    title: `${inspection.bedName} - ${abnormal.label}复查`,
+    owner: inspection.followupOwner || '值班志愿者',
+    due: inspection.followupDate,
+    done: false,
+    relatedInspectionId: inspection.id,
+    taskType: TASK_TYPE_REVIEW,
     createdAt: new Date().toISOString()
   };
 };
@@ -38,6 +60,62 @@ const getTaskDueDate = (severity) => {
   const d = new Date(today);
   d.setDate(d.getDate() + offsetDays);
   return d.toISOString().slice(0, 10);
+};
+
+export const findTaskByInspectionAndType = (tasks, inspectionId, taskType) => {
+  return tasks.find(t => t.relatedInspectionId === inspectionId && t.taskType === taskType);
+};
+
+export const getFollowupStatus = (inspection, tasks) => {
+  if (!inspection) return { key: 'none', label: '', overdue: false };
+  const treatment = getTreatmentResultInfo(inspection.treatmentResult);
+
+  if (!treatment.needsFollowupPlan) {
+    return { key: 'not_required', label: '无需复查', overdue: false };
+  }
+
+  if (!inspection.followupDate) {
+    return { key: 'no_plan', label: '待安排复查', overdue: false };
+  }
+
+  const reviewTask = findTaskByInspectionAndType(tasks, inspection.id, TASK_TYPE_REVIEW);
+  const today = new Date().toISOString().slice(0, 10);
+  const isOverdue = inspection.followupDate < today;
+
+  if (reviewTask && reviewTask.done) {
+    return { key: 'completed', label: '复查已完成', overdue: false, taskId: reviewTask.id };
+  }
+
+  if (isOverdue) {
+    return { key: 'overdue', label: `复查逾期（${inspection.followupDate}）`, overdue: true, taskId: reviewTask?.id };
+  }
+
+  return { key: 'pending', label: `待复查（${inspection.followupDate}）`, overdue: false, taskId: reviewTask?.id };
+};
+
+export const getOverdueReviewTasks = (tasks, inspections) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const overdue = [];
+
+  for (const inspection of inspections) {
+    const status = getFollowupStatus(inspection, tasks);
+    if (status.overdue) {
+      const abnormal = getAbnormalTypeInfo(inspection.abnormalType);
+      overdue.push({
+        id: `review-overdue-${inspection.id}`,
+        type: 'review_overdue',
+        bed: inspection.bedName,
+        inspectionId: inspection.id,
+        label: `${inspection.bedName} 复查逾期`,
+        message: `${abnormal.label}复查计划于 ${inspection.followupDate}，负责人：${inspection.followupOwner || '未指定'}`,
+        abnormal: abnormal.label,
+        followupDate: inspection.followupDate,
+        followupOwner: inspection.followupOwner
+      });
+    }
+  }
+
+  return overdue;
 };
 
 export const syncInspectionToBed = (inspection, beds) => {
@@ -59,6 +137,7 @@ export const syncInspectionToBed = (inspection, beds) => {
 export const syncAllInspections = (inspections, beds, tasks) => {
   let updatedBeds = [...beds];
   let updatedTasks = [...tasks];
+  let updatedInspections = [...inspections];
   const syncResults = [];
 
   const pendingInspections = inspections.filter(i => i.syncStatus !== 'synced');
@@ -70,19 +149,38 @@ export const syncAllInspections = (inspections, beds, tasks) => {
 
       updatedBeds = syncInspectionToBed(inspection, updatedBeds);
 
-      const newTask = generateTaskFromInspection(inspection);
-      if (newTask) {
-        const taskExists = updatedTasks.some(t => t.relatedInspectionId === inspection.id);
+      const inspectionTask = generateTaskFromInspection(inspection);
+      if (inspectionTask) {
+        const taskExists = findTaskByInspectionAndType(updatedTasks, inspection.id, TASK_TYPE_INSPECTION);
         if (!taskExists) {
-          updatedTasks = [newTask, ...updatedTasks];
+          updatedTasks = [inspectionTask, ...updatedTasks];
         }
+      }
+
+      const reviewTask = generateReviewTaskFromInspection(inspection);
+      let reviewTaskId = inspection.followupTaskId;
+      if (reviewTask) {
+        const existingReviewTask = findTaskByInspectionAndType(updatedTasks, inspection.id, TASK_TYPE_REVIEW);
+        if (!existingReviewTask) {
+          updatedTasks = [reviewTask, ...updatedTasks];
+          reviewTaskId = reviewTask.id;
+        } else {
+          reviewTaskId = existingReviewTask.id;
+        }
+      }
+
+      if (reviewTaskId !== inspection.followupTaskId) {
+        updatedInspections = updatedInspections.map(i =>
+          i.id === inspection.id ? { ...i, followupTaskId: reviewTaskId } : i
+        );
       }
 
       syncResults.push({
         inspectionId: inspection.id,
         status: 'synced',
         bedUpdated: true,
-        taskCreated: !!newTask && !updatedTasks.some(t => t.relatedInspectionId === inspection.id && updatedTasks.indexOf(t) === 0),
+        taskCreated: !!inspectionTask,
+        reviewTaskCreated: !!reviewTask && !findTaskByInspectionAndType(tasks, inspection.id, TASK_TYPE_REVIEW),
         severity: abnormal.severity,
         clearsWarning: treatment.clearsWarning
       });
@@ -98,6 +196,7 @@ export const syncAllInspections = (inspections, beds, tasks) => {
   return {
     beds: updatedBeds,
     tasks: updatedTasks,
+    inspections: updatedInspections,
     syncResults
   };
 };
@@ -175,7 +274,7 @@ export const getInspectionSyncStats = (inspections) => {
   return { total, synced, pending, error, withWarning, withTask };
 };
 
-export const getBedInspectionSummary = (bedName, inspections) => {
+export const getBedInspectionSummary = (bedName, inspections, tasks = []) => {
   const bedInspections = inspections.filter(i => i.bedName === bedName);
   const sorted = [...bedInspections].sort((a, b) =>
     new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time)
@@ -187,6 +286,14 @@ export const getBedInspectionSummary = (bedName, inspections) => {
     return !treatment.clearsWarning;
   });
 
+  let pendingReviewCount = 0;
+  let overdueReviewCount = 0;
+  for (const insp of bedInspections) {
+    const status = getFollowupStatus(insp, tasks);
+    if (status.key === 'pending' || status.key === 'no_plan') pendingReviewCount++;
+    if (status.overdue) overdueReviewCount++;
+  }
+
   const abnormalCount = {};
   for (const insp of bedInspections) {
     const info = getAbnormalTypeInfo(insp.abnormalType);
@@ -197,6 +304,8 @@ export const getBedInspectionSummary = (bedName, inspections) => {
     total: bedInspections.length,
     lastInspection,
     unresolvedCount: unresolved.length,
+    pendingReviewCount,
+    overdueReviewCount,
     abnormalCount,
     recent: sorted.slice(0, 5)
   };
