@@ -553,7 +553,7 @@ function App() {
 
   const transactionRelatedOptions = useMemo(() => {
     const taskOpts = tasks.map((t) => ({ id: t.id, name: t.title, type: 'task' }));
-    const harvestOpts = harvests.map((h) => ({ id: h.id, name: `${h.crop} ${h.weight}`, type: 'harvest' }));
+    const harvestOpts = harvests.map((h) => ({ id: h.id, name: `${h.crop} ${h.weight}`, type: 'harvest', bedName: h.bed, crop: h.crop }));
     const plantOpts = plants.map((p) => ({ id: p.id, name: `${p.bedName}-${p.crop}`, type: 'plant', bedName: p.bedName, crop: p.crop }));
     const inspectionOpts = inspections.map((i) => ({ id: i.id, name: `${i.bedName}-${i.abnormalType || '巡检'}`, type: 'inspection', bedName: i.bedName }));
     const bedOpts = beds.map((b) => ({ id: b.id, name: b.name, type: 'bed', bedName: b.name, crop: b.crop }));
@@ -1152,7 +1152,7 @@ function App() {
                     <button type="button" className="miniBtn distributionBtn" onClick={() => setDistEditingHarvest(item)}>
                       <Package size={12} />{item.distribution ? '编辑分配' : '登记分配'}
                     </button>
-                    <button type="button" className="miniBtn" onClick={() => quickConsumeForHarvest(item.id, `${item.crop} ${item.weight}`)}>
+                    <button type="button" className="miniBtn" onClick={() => quickConsumeForHarvest(item.id, `${item.crop} ${item.weight}`, item.bed, item.crop)}>
                       <ArrowUpCircle size={12} />登记追肥/耗材
                     </button>
                   </div>
