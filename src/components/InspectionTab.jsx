@@ -2,12 +2,15 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Bug, Search, Plus, Save, FileText, Clock, CheckCircle2,
   AlertTriangle, RefreshCw, Trash2, Image as ImageIcon,
-  Trash, X, Calendar, User
+  Trash, X, Calendar, User, ArrowUpCircle, Package
 } from 'lucide-react';
 import {
   ABNORMAL_TYPES, TREATMENT_RESULTS,
   getAbnormalTypeInfo, getTreatmentResultInfo, iso
 } from '../data/inspectionData';
+import {
+  getSuggestedMaterials, buildTransactionEntry, RELATED_TYPE_LABELS
+} from '../data/seedData';
 import {
   syncAllInspections, updateInspectionSyncStatus,
   getInspectionSyncStats, generateTaskFromInspection,
@@ -20,7 +23,7 @@ const DRAFT_KEY = 'zfl-1-inspection-draft';
 
 export function InspectionTab({
   inspections, setInspections, beds, tasks, setTasks, setBeds,
-  prefillBedId, onPrefillConsumed
+  prefillBedId, onPrefillConsumed, materials, transactions, setTransactions
 }) {
   const [form, setForm] = useState({
     bedId: '',
@@ -58,6 +61,7 @@ export function InspectionTab({
   const [isSyncing, setIsSyncing] = useState(false);
   const [recoveredDraft, setRecoveredDraft] = useState(null);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [inspectionConsumptions, setInspectionConsumptions] = useState([]);
 
   const bedOptions = useMemo(() =>
     beds.map(bed => ({ id: bed.id, name: bed.name })),
@@ -227,6 +231,23 @@ export function InspectionTab({
       } : i
     );
     setInspections(updatedInspections);
+
+    if (inspectionConsumptions.length > 0 && materials && setTransactions) {
+      const bed = beds.find(b => b.name === form.bedName);
+      const newTransactions = inspectionConsumptions.filter(c => c.quantity > 0).map(c => ({
+        ...c,
+        id: crypto.randomUUID(),
+        relatedType: 'inspection',
+        relatedId: newInspection.id,
+        relatedName: `${form.bedName}-${getAbnormalTypeInfo(form.abnormalType).label}`,
+        bedName: form.bedName,
+        crop: bed && bed.crop && bed.crop !== '待播种' ? bed.crop : ''
+      }));
+      if (newTransactions.length > 0) {
+        setTransactions([...newTransactions, ...transactions]);
+      }
+    }
+    setInspectionConsumptions([]);
   };
 
   const handleSaveDraft = () => {
@@ -558,6 +579,112 @@ export function InspectionTab({
                 onChange={(e) => setForm({ ...form, time: e.target.value })}
               />
             </div>
+
+            {form.abnormalType && materials && (
+              <div className="consumptionSuggestionSection">
+                <div className="consumptionSuggestionHeader">
+                  <ArrowUpCircle size={16} />
+                  <span>消耗建议</span>
+                  <span className="consumptionSuggestionHint">（可选，同步记入库存消耗）</span>
+                </div>
+                <div className="suggestionQuickAdd">
+                  {getSuggestedMaterials(materials, { type: 'inspection', abnormalType: form.abnormalType }).map((rule, idx) => {
+                    const firstMat = rule.materials[0];
+                    const alreadyAdded = inspectionConsumptions.find(c => c.materialId === firstMat?.id);
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        className={`suggestionChip ${alreadyAdded ? 'added' : ''}`}
+                        onClick={() => {
+                          if (!firstMat || alreadyAdded) return;
+                          const entry = buildTransactionEntry(firstMat.id, materials, {
+                            quantity: rule.defaultQty,
+                            note: rule.label
+                          });
+                          if (entry) {
+                            setInspectionConsumptions([...inspectionConsumptions, entry]);
+                          }
+                        }}
+                        disabled={!!alreadyAdded}
+                      >
+                        <Package size={12} />
+                        {rule.label}
+                        {!alreadyAdded && <span className="suggestionQty">+{rule.defaultQty}{firstMat?.unit}</span>}
+                        {alreadyAdded && ' ✓'}
+                      </button>
+                    );
+                  })}
+                </div>
+                {inspectionConsumptions.length > 0 && (
+                  <div className="consumptionItems">
+                    {inspectionConsumptions.map((c) => {
+                      const availableMaterials = materials.filter(
+                        m => !inspectionConsumptions.find(x => x.materialId === m.id && x.materialId !== c.materialId)
+                      );
+                      return (
+                      <div key={c.materialId} className="consumptionItem">
+                        <select
+                          value={c.materialId}
+                          onChange={(e) => {
+                            const newMatId = e.target.value;
+                            const existing = inspectionConsumptions.find(x => x.materialId === newMatId);
+                            if (existing) return;
+                            const entry = buildTransactionEntry(newMatId, materials, { quantity: c.quantity });
+                            if (entry) {
+                              setInspectionConsumptions(inspectionConsumptions.map(x =>
+                                x.materialId === c.materialId ? entry : x
+                              ));
+                            }
+                          }}
+                        >
+                          <option value={c.materialId}>{c.materialName}（{c.unit}）</option>
+                          {availableMaterials.map(m => (
+                            <option key={m.id} value={m.id}>{m.name}（{m.unit}）</option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="数量"
+                          value={c.quantity || ''}
+                          onChange={(e) => {
+                            setInspectionConsumptions(inspectionConsumptions.map(x =>
+                              x.materialId === c.materialId ? { ...x, quantity: Number(e.target.value) || 0 } : x
+                            ));
+                          }}
+                          style={{ width: '80px' }}
+                        />
+                        <span className="consumptionUnit">{c.unit}</span>
+                        <button
+                          type="button"
+                          className="consumptionRemoveBtn"
+                          onClick={() => {
+                            setInspectionConsumptions(inspectionConsumptions.filter(x => x.materialId !== c.materialId));
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      );
+                    })}
+                    {materials.filter(m => !inspectionConsumptions.find(c => c.materialId === m.id)).length > 0 && (
+                      <button type="button" className="consumptionAddBtn" onClick={() => {
+                        const available = materials.filter(m => !inspectionConsumptions.find(c => c.materialId === m.id));
+                        if (available.length === 0) return;
+                        const first = available[0];
+                        const entry = buildTransactionEntry(first.id, materials, { quantity: 1 });
+                        if (entry) {
+                          setInspectionConsumptions([...inspectionConsumptions, entry]);
+                        }
+                      }}>
+                        <Plus size={12} /> 添加物资
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="inspectionFormActions">
               <button type="button" className="draftBtn" onClick={handleSaveDraft}>

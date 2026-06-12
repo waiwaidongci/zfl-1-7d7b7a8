@@ -3,15 +3,17 @@ import {
   X, User, Phone, CalendarDays, Droplets, TriangleAlert,
   Users, MessageCircle, Wheat, Package, Sprout, AlertCircle,
   CheckCircle2, Clock, Bug, Search, MapPin, Calendar,
-  AlertTriangle
+  AlertTriangle, ArrowUpCircle
 } from 'lucide-react';
 import { getWaterUrgency, STATUS_STYLES, getZoneOfBed } from '../config/floorPlan';
 import { getBedInspectionSummary, getFollowupStatus } from '../utils/statusSync';
 import { getAbnormalTypeInfo } from '../data/inspectionData';
+import { RELATED_TYPE_LABELS } from '../data/seedData';
 
 export function BedDetailModal({
   bed, plants, contacts, harvests, transactions, tasks,
-  inspections, onClose, onQuickWater, onAddInspection, bedPlacement
+  inspections, onClose, onQuickWater, onAddInspection, bedPlacement,
+  materials, beds
 }) {
   if (!bed) return null;
 
@@ -33,29 +35,75 @@ export function BedDetailModal({
     ).slice(0, 5), [harvests, bed.name]);
 
   const bedMaterials = useMemo(() => {
-    const map = {};
-    transactions.filter(t => t.type === 'consume').forEach(t => {
+    const bedIdMap = {};
+    if (beds) beds.forEach(b => { bedIdMap[b.name] = b.id; });
+    const taskBedMap = {};
+    tasks.forEach(t => {
+      const matchedBed = beds ? beds.find(b => t.title.includes(b.name.slice(0, 3))) : null;
+      if (matchedBed) taskBedMap[t.id] = matchedBed.id;
+    });
+
+    const consumptions = transactions.filter(t => {
+      if (t.type !== 'consume') return false;
       let match = false;
       if (t.relatedType === 'harvest') {
         const h = harvests.find(h => h.id === t.relatedId);
         if (h && h.bed === bed.name) match = true;
       } else if (t.relatedType === 'task') {
-        if (t.relatedName && t.relatedName.includes(bed.name.slice(0, 3))) match = true;
+        if (taskBedMap[t.relatedId] === bed.id) match = true;
+        else if (t.relatedName && t.relatedName.includes(bed.name.slice(0, 3))) match = true;
+      } else if (t.relatedType === 'plant') {
+        const p = plants.find(p => p.id === t.relatedId);
+        if (p && p.bedId === bed.id) match = true;
+      } else if (t.relatedType === 'inspection') {
+        const i = inspections.find(i => i.id === t.relatedId);
+        if (i && i.bedName === bed.name) match = true;
+      } else if (t.relatedType === 'bed') {
+        if (t.relatedId === bed.id) match = true;
       }
-      if (match) {
-        if (!map[t.materialId]) {
-          map[t.materialId] = {
-            name: t.materialName,
-            total: 0,
-            unit: t.unit,
-            category: t.category
-          };
-        }
-        map[t.materialId].total += t.quantity;
-      }
+      if (!match && t.bedName === bed.name) match = true;
+      return match;
     });
-    return Object.values(map).sort((a, b) => b.total - a.total).slice(0, 5);
-  }, [transactions, harvests, bed.name]);
+
+    const summary = {};
+    consumptions.forEach(t => {
+      if (!summary[t.materialId]) {
+        summary[t.materialId] = {
+          name: t.materialName,
+          total: 0,
+          unit: t.unit,
+          category: t.category,
+          records: []
+        };
+      }
+      summary[t.materialId].total += t.quantity;
+      summary[t.materialId].records.push({
+        quantity: t.quantity,
+        date: t.date,
+        relatedType: t.relatedType,
+        relatedName: t.relatedName,
+        note: t.note
+      });
+    });
+
+    const byType = {};
+    consumptions.forEach(t => {
+      const type = t.relatedType || 'unassigned';
+      if (!byType[type]) {
+        byType[type] = { count: 0, totalQty: 0 };
+      }
+      byType[type].count += 1;
+      byType[type].totalQty += t.quantity;
+    });
+
+    return {
+      summary: Object.values(summary).sort((a, b) => b.total - a.total),
+      consumptions: consumptions.sort((a, b) => new Date(b.date) - new Date(a.date)),
+      totalTypes: Object.keys(summary).length,
+      totalQuantity: consumptions.reduce((sum, t) => sum + t.quantity, 0),
+      byType
+    };
+  }, [transactions, harvests, bed.name, bed.id, tasks, plants, inspections, beds]);
 
   const bedTasks = useMemo(() =>
     tasks.filter(t => !t.done && t.title.includes(bed.name.slice(0, 3))).slice(0, 5),
@@ -233,16 +281,67 @@ export function BedDetailModal({
             </div>
           )}
 
-          {bedMaterials.length > 0 && (
+          {bedMaterials.summary.length > 0 && (
             <div className="bedDetailSection">
-              <h4><Package size={16} />物资消耗</h4>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {bedMaterials.map(m => (
-                  <span key={m.name} className="miniConsumeTag">
-                    {m.name}: {m.total}{m.unit}
-                  </span>
+              <h4><Package size={16} />物资投入汇总</h4>
+              <div className="bedMaterialSummaryStats">
+                <span className="bedMaterialStat">{bedMaterials.totalTypes}种物资</span>
+                <span className="bedMaterialStat">共{bedMaterials.totalQuantity}件消耗</span>
+                <span className="bedMaterialStat">{bedMaterials.consumptions.length}条记录</span>
+              </div>
+              {Object.keys(bedMaterials.byType).length > 0 && (
+                <div className="bedMaterialTypeStats">
+                  <span className="bedMaterialTypeLabel">按类型：</span>
+                  <div className="bedMaterialTypeTags">
+                    {Object.entries(bedMaterials.byType).map(([type, stats]) => (
+                      <span key={type} className="bedMaterialTypeTag">
+                        {RELATED_TYPE_LABELS[type] || '未关联'}：{stats.count}次
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="bedMaterialSummaryList">
+                {bedMaterials.summary.map(m => (
+                  <div key={m.name} className="bedMaterialSummaryItem">
+                    <div className="bedMaterialSummaryHeader">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <strong>{m.name}</strong>
+                        <span className={`categoryTag ${m.category}`} style={{ fontSize: '11px' }}>{m.category}</span>
+                      </div>
+                      <span className="bedMaterialQty">{m.total}{m.unit}</span>
+                    </div>
+                    <div className="bedMaterialRecords">
+                      {m.records.slice(0, 3).map((r, idx) => (
+                        <span key={idx} className="bedMaterialRecord">
+                          <span className="bedMaterialRecordType">
+                            {RELATED_TYPE_LABELS[r.relatedType] || '直接消耗'}
+                          </span>
+                          -{r.quantity}{m.unit}
+                          <span className="bedMaterialRecordDate">{r.date}</span>
+                        </span>
+                      ))}
+                      {m.records.length > 3 && (
+                        <span className="bedMaterialRecord more">+{m.records.length - 3}次</span>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
+              {bedMaterials.consumptions.length > 0 && (
+                <div className="bedMaterialRecentList">
+                  <p className="bedMaterialRecentTitle"><ArrowUpCircle size={12} />最近消耗记录</p>
+                  {bedMaterials.consumptions.slice(0, 5).map(t => (
+                    <div key={t.id} className="bedMaterialRecentItem">
+                      <span className="miniConsumeTag">{t.materialName} -{t.quantity}{t.unit}</span>
+                      <span className="attributionTag">
+                        {RELATED_TYPE_LABELS[t.relatedType] || '未关联'}
+                      </span>
+                      <span style={{ fontSize: '11px', color: '#87917f' }}>{t.date}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

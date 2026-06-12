@@ -5,7 +5,8 @@ import './styles.css';
 
 import {
   seedBeds, seedHarvests, seedTasks, seedSchedules, seedContacts,
-  seedPlants, seedMaterials, seedTransactions, iso, getWeekday
+  seedPlants, seedMaterials, seedTransactions, iso, getWeekday,
+  getSuggestedMaterials, RELATED_TYPE_LABELS, buildTransactionEntry
 } from './data/seedData';
 import { seedInspections, bedPlacementSeed } from './data/inspectionData';
 import { useStoredState } from './hooks/useStoredState';
@@ -61,14 +62,21 @@ function App() {
   const [contactForm, setContactForm] = useState({ bedId: '', bedName: '', adopter: '', phone: '', type: '电话', date: iso(0), time: '09:00', content: '', note: '' });
   const [plantForm, setPlantForm] = useState({ bedId: '', bedName: '', crop: '', sowDate: iso(0), harvestDate: iso(30), growthStage: '播种期', note: '' });
   const [materialForm, setMaterialForm] = useState({ name: '', category: '种子', unit: '', lowStockThreshold: 5, note: '' });
-  const [transactionForm, setTransactionForm] = useState({ materialId: '', type: 'inbound', quantity: '', date: iso(0), relatedType: '', relatedId: '', relatedName: '', note: '' });
+  const [transactionForm, setTransactionForm] = useState({ materialId: '', type: 'inbound', quantity: '', date: iso(0), relatedType: '', relatedId: '', relatedName: '', bedName: '', crop: '', note: '' });
   const [inventoryQuery, setInventoryQuery] = useState('');
   const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState('');
   const [transactionTypeFilter, setTransactionTypeFilter] = useState('');
   const [transactionMaterialFilter, setTransactionMaterialFilter] = useState('');
+  const [transactionBedFilter, setTransactionBedFilter] = useState('');
+  const [transactionCropFilter, setTransactionCropFilter] = useState('');
+  const [transactionRelatedTypeFilter, setTransactionRelatedTypeFilter] = useState('');
   const [editingMaterialId, setEditingMaterialId] = useState('');
   const [editingMaterialForm, setEditingMaterialForm] = useState({ name: '', category: '种子', unit: '', lowStockThreshold: 5, note: '' });
   const [distEditingHarvest, setDistEditingHarvest] = useState(null);
+  const [harvestConsumptions, setHarvestConsumptions] = useState([]);
+  const [plantConsumptions, setPlantConsumptions] = useState([]);
+  const [taskConsumptions, setTaskConsumptions] = useState({});
+  const [expandedTaskIds, setExpandedTaskIds] = useState([]);
 
   const weekWater = beds.filter((bed) => {
     const days = (new Date(bed.nextWater) - today) / 86400000;
@@ -88,8 +96,24 @@ function App() {
   const addHarvest = (event) => {
     event.preventDefault();
     if (!harvestForm.bed.trim() || !harvestForm.crop.trim()) return;
-    setHarvests([{ id: crypto.randomUUID(), ...harvestForm, distribution: null }, ...harvests]);
+    const newId = crypto.randomUUID();
+    setHarvests([{ id: newId, ...harvestForm, distribution: null }, ...harvests]);
+    if (harvestConsumptions.length > 0) {
+      const newTransactions = harvestConsumptions.filter(c => c.quantity > 0).map(c => ({
+        ...c,
+        id: crypto.randomUUID(),
+        relatedType: 'harvest',
+        relatedId: newId,
+        relatedName: `${harvestForm.crop} ${harvestForm.weight}`,
+        bedName: harvestForm.bed,
+        crop: harvestForm.crop
+      }));
+      if (newTransactions.length > 0) {
+        setTransactions([...newTransactions, ...transactions]);
+      }
+    }
     setHarvestForm({ bed: '', crop: '', weight: '', date: iso(0), note: '' });
+    setHarvestConsumptions([]);
   };
 
   const saveDistributionFromDashboard = (harvestId, distribution) => {
@@ -131,6 +155,49 @@ function App() {
 
   const toggleTask = (id) => setTasks(tasks.map((task) => task.id === id ? { ...task, done: !task.done } : task));
   const advanceWater = (id) => setBeds(beds.map((bed) => bed.id === id ? { ...bed, nextWater: iso(3), warning: '' } : bed));
+
+  const toggleTaskExpand = (taskId) => {
+    setExpandedTaskIds(prev =>
+      prev.includes(taskId)
+        ? prev.filter(id => id !== taskId)
+        : [...prev, taskId]
+    );
+  };
+
+  const getTaskConsumptions = (taskId) => taskConsumptions[taskId] || [];
+
+  const setTaskConsumptionsById = (taskId, consumptions) => {
+    setTaskConsumptions(prev => ({
+      ...prev,
+      [taskId]: consumptions
+    }));
+  };
+
+  const getTaskBedInfo = (task) => {
+    const matchedBed = beds.find((b) => task.title.includes(b.name.slice(0, 3)));
+    return matchedBed ? { bedId: matchedBed.id, bedName: matchedBed.name, crop: matchedBed.crop === '待播种' ? '' : matchedBed.crop } : { bedId: '', bedName: '', crop: '' };
+  };
+
+  const saveTaskConsumptions = (taskId, taskTitle) => {
+    const consumptions = getTaskConsumptions(taskId);
+    const validConsumptions = consumptions.filter(c => c.quantity > 0);
+    if (validConsumptions.length === 0) return;
+
+    const bedInfo = getTaskBedInfo({ title: taskTitle });
+    const newTransactions = validConsumptions.map(c => ({
+      ...c,
+      id: crypto.randomUUID(),
+      relatedType: 'task',
+      relatedId: taskId,
+      relatedName: taskTitle,
+      bedName: bedInfo.bedName,
+      crop: bedInfo.crop
+    }));
+
+    setTransactions([...newTransactions, ...transactions]);
+    setTaskConsumptionsById(taskId, []);
+    toggleTaskExpand(taskId);
+  };
 
   const harvestOptions = useMemo(() => beds.map((bed) => bed.name), [beds]);
   const contactBedOptions = useMemo(() => beds.filter((bed) => bed.adopter).map((bed) => ({ id: bed.id, name: bed.name, adopter: bed.adopter, phone: bed.phone })), [beds]);
@@ -299,8 +366,24 @@ function App() {
     const stage = plantForm.growthStage === '自动计算'
       ? calculateGrowthStage(plantForm.sowDate, plantForm.harvestDate)
       : plantForm.growthStage;
-    setPlants([{ id: crypto.randomUUID(), ...plantForm, growthStage: stage }, ...plants]);
+    const newId = crypto.randomUUID();
+    setPlants([{ id: newId, ...plantForm, growthStage: stage }, ...plants]);
+    if (plantConsumptions.length > 0) {
+      const newTransactions = plantConsumptions.filter(c => c.quantity > 0).map(c => ({
+        ...c,
+        id: crypto.randomUUID(),
+        relatedType: 'plant',
+        relatedId: newId,
+        relatedName: `${plantForm.bedName}-${plantForm.crop}`,
+        bedName: plantForm.bedName,
+        crop: plantForm.crop
+      }));
+      if (newTransactions.length > 0) {
+        setTransactions([...newTransactions, ...transactions]);
+      }
+    }
     setPlantForm({ bedId: '', bedName: '', crop: '', sowDate: iso(0), harvestDate: iso(30), growthStage: '播种期', note: '' });
+    setPlantConsumptions([]);
   };
 
   const deletePlant = (id) => {
@@ -357,12 +440,52 @@ function App() {
     const monthlyConsume = transactions.filter(
       (t) => t.type === 'consume' && new Date(t.date) >= monthStart
     ).length;
+    const consumeByRelatedType = {};
+    const consumeQtyByRelatedType = {};
+    transactions.filter(t => t.type === 'consume').forEach(t => {
+      const key = t.relatedType || 'unassigned';
+      consumeByRelatedType[key] = (consumeByRelatedType[key] || 0) + 1;
+      consumeQtyByRelatedType[key] = (consumeQtyByRelatedType[key] || 0) + t.quantity;
+    });
+    const topConsumed = {};
+    transactions.filter(t => t.type === 'consume').forEach(t => {
+      if (!topConsumed[t.materialId]) {
+        topConsumed[t.materialId] = { name: t.materialName, total: 0, unit: t.unit, category: t.category };
+      }
+      topConsumed[t.materialId].total += t.quantity;
+    });
+    const topConsumedList = Object.values(topConsumed).sort((a, b) => b.total - a.total).slice(0, 5);
+
+    const consumeByCategory = {};
+    transactions.filter(t => t.type === 'consume').forEach(t => {
+      if (!consumeByCategory[t.category]) {
+        consumeByCategory[t.category] = { count: 0, totalQty: 0 };
+      }
+      consumeByCategory[t.category].count += 1;
+      consumeByCategory[t.category].totalQty += t.quantity;
+    });
+
+    const consumeBeds = new Set();
+    transactions.filter(t => t.type === 'consume').forEach(t => {
+      if (t.bedName) consumeBeds.add(t.bedName);
+    });
+
+    const totalConsumeQty = transactions
+      .filter(t => t.type === 'consume')
+      .reduce((sum, t) => sum + t.quantity, 0);
+
     return {
       categoryCount: categories.size,
       materialCount: materials.length,
       lowStockCount: lowStockItems.length,
       monthlyInbound,
-      monthlyConsume
+      monthlyConsume,
+      consumeByRelatedType,
+      consumeQtyByRelatedType,
+      topConsumedList,
+      consumeByCategory,
+      consumeBedCount: consumeBeds.size,
+      totalConsumeQty
     };
   }, [materials, transactions, lowStockItems]);
 
@@ -383,6 +506,26 @@ function App() {
     });
   }, [stockByMaterial, inventoryQuery, inventoryCategoryFilter]);
 
+  const transactionBedOptions = useMemo(() => {
+    const bedNames = new Set();
+    transactions.filter((t) => t.type === 'consume').forEach((t) => {
+      if (t.bedName) bedNames.add(t.bedName);
+    });
+    beds.forEach((b) => bedNames.add(b.name));
+    return Array.from(bedNames).sort();
+  }, [transactions, beds]);
+
+  const transactionCropOptions = useMemo(() => {
+    const crops = new Set();
+    transactions.filter((t) => t.type === 'consume').forEach((t) => {
+      if (t.crop) crops.add(t.crop);
+    });
+    plants.forEach((p) => crops.add(p.crop));
+    harvests.forEach((h) => crops.add(h.crop));
+    beds.forEach((b) => { if (b.crop && b.crop !== '待播种') crops.add(b.crop); });
+    return Array.from(crops).sort();
+  }, [transactions, plants, harvests, beds]);
+
   const filteredTransactions = useMemo(() => {
     let result = [...transactions];
     if (transactionTypeFilter) {
@@ -391,14 +534,26 @@ function App() {
     if (transactionMaterialFilter) {
       result = result.filter((t) => t.materialId === transactionMaterialFilter);
     }
+    if (transactionBedFilter) {
+      result = result.filter((t) => t.bedName === transactionBedFilter);
+    }
+    if (transactionCropFilter) {
+      result = result.filter((t) => t.crop === transactionCropFilter);
+    }
+    if (transactionRelatedTypeFilter) {
+      result = result.filter((t) => t.relatedType === transactionRelatedTypeFilter);
+    }
     return result.sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [transactions, transactionTypeFilter, transactionMaterialFilter]);
+  }, [transactions, transactionTypeFilter, transactionMaterialFilter, transactionBedFilter, transactionCropFilter, transactionRelatedTypeFilter]);
 
   const transactionRelatedOptions = useMemo(() => {
     const taskOpts = tasks.map((t) => ({ id: t.id, name: t.title, type: 'task' }));
     const harvestOpts = harvests.map((h) => ({ id: h.id, name: `${h.crop} ${h.weight}`, type: 'harvest' }));
-    return { task: taskOpts, harvest: harvestOpts };
-  }, [tasks, harvests]);
+    const plantOpts = plants.map((p) => ({ id: p.id, name: `${p.bedName}-${p.crop}`, type: 'plant', bedName: p.bedName, crop: p.crop }));
+    const inspectionOpts = inspections.map((i) => ({ id: i.id, name: `${i.bedName}-${i.abnormalType || '巡检'}`, type: 'inspection', bedName: i.bedName }));
+    const bedOpts = beds.map((b) => ({ id: b.id, name: b.name, type: 'bed', bedName: b.name, crop: b.crop }));
+    return { task: taskOpts, harvest: harvestOpts, plant: plantOpts, inspection: inspectionOpts, bed: bedOpts };
+  }, [tasks, harvests, plants, inspections, beds]);
 
   const consumptionsByTaskId = useMemo(() => {
     const map = {};
@@ -418,28 +573,105 @@ function App() {
     return map;
   }, [transactions]);
 
-  const consumptionsByBedName = useMemo(() => {
+  const consumptionsByPlantId = useMemo(() => {
     const map = {};
+    transactions.filter((t) => t.type === 'consume' && t.relatedType === 'plant').forEach((t) => {
+      if (!map[t.relatedId]) map[t.relatedId] = [];
+      map[t.relatedId].push(t);
+    });
+    return map;
+  }, [transactions]);
+
+  const consumptionsByInspectionId = useMemo(() => {
+    const map = {};
+    transactions.filter((t) => t.type === 'consume' && t.relatedType === 'inspection').forEach((t) => {
+      if (!map[t.relatedId]) map[t.relatedId] = [];
+      map[t.relatedId].push(t);
+    });
+    return map;
+  }, [transactions]);
+
+  const consumptionsByBedId = useMemo(() => {
+    const map = {};
+    const bedIdMap = {};
+    beds.forEach((b) => { bedIdMap[b.name] = b.id; });
     const taskBedMap = {};
     tasks.forEach((t) => {
       const matchedBed = beds.find((b) => t.title.includes(b.name.slice(0, 3)));
-      if (matchedBed) taskBedMap[t.id] = matchedBed.name;
+      if (matchedBed) taskBedMap[t.id] = matchedBed.id;
     });
     transactions.filter((t) => t.type === 'consume').forEach((t) => {
-      let bedName = '';
+      let bedId = '';
       if (t.relatedType === 'harvest') {
         const h = harvests.find((h) => h.id === t.relatedId);
-        if (h) bedName = h.bed;
+        if (h) bedId = bedIdMap[h.bed] || '';
       } else if (t.relatedType === 'task') {
-        bedName = taskBedMap[t.relatedId] || '';
+        bedId = taskBedMap[t.relatedId] || '';
+      } else if (t.relatedType === 'plant') {
+        const p = plants.find((p) => p.id === t.relatedId);
+        if (p) bedId = p.bedId;
+      } else if (t.relatedType === 'inspection') {
+        const i = inspections.find((i) => i.id === t.relatedId);
+        if (i) {
+          const b = beds.find((b) => b.name === i.bedName);
+          if (b) bedId = b.id;
+        }
+      } else if (t.relatedType === 'bed') {
+        bedId = t.relatedId;
       }
-      if (bedName) {
-        if (!map[bedName]) map[bedName] = [];
-        map[bedName].push(t);
+      if (!bedId && t.bedName) {
+        bedId = bedIdMap[t.bedName] || '';
+      }
+      if (bedId) {
+        if (!map[bedId]) map[bedId] = [];
+        map[bedId].push(t);
       }
     });
     return map;
-  }, [transactions, tasks, harvests, beds]);
+  }, [transactions, tasks, harvests, plants, inspections, beds]);
+
+  const consumptionsByBedName = useMemo(() => {
+    const map = {};
+    Object.entries(consumptionsByBedId).forEach(([bedId, ts]) => {
+      const bed = beds.find((b) => b.id === bedId);
+      if (bed) {
+        map[bed.name] = ts;
+      }
+    });
+    return map;
+  }, [consumptionsByBedId, beds]);
+
+  const consumptionsByCrop = useMemo(() => {
+    const map = {};
+    const bedCropMap = {};
+    beds.forEach((b) => { if (b.crop && b.crop !== '待播种') bedCropMap[b.name] = b.crop; });
+    plants.forEach((p) => { bedCropMap[p.bedName] = p.crop; });
+    harvests.forEach((h) => { bedCropMap[h.bed] = h.crop; });
+    transactions.filter((t) => t.type === 'consume').forEach((t) => {
+      let crop = t.crop || '';
+      if (!crop) {
+        if (t.relatedType === 'harvest') {
+          const h = harvests.find((h) => h.id === t.relatedId);
+          if (h) crop = h.crop;
+        } else if (t.relatedType === 'plant') {
+          const p = plants.find((p) => p.id === t.relatedId);
+          if (p) crop = p.crop;
+        } else if (t.bedName) {
+          crop = bedCropMap[t.bedName] || '';
+        }
+      }
+      if (crop) {
+        if (!map[crop]) map[crop] = [];
+        map[crop].push(t);
+      }
+    });
+    return map;
+  }, [transactions, harvests, plants, beds]);
+
+  const consumeTransactionBedOptions = useMemo(() =>
+    beds.map((b) => ({ id: b.id, name: b.name, crop: b.crop })),
+    [beds]
+  );
 
   const addMaterial = (event) => {
     event.preventDefault();
@@ -470,10 +702,12 @@ function App() {
       relatedType: transactionForm.relatedType,
       relatedId: transactionForm.relatedId,
       relatedName: transactionForm.relatedName,
+      bedName: transactionForm.bedName,
+      crop: transactionForm.crop,
       note: transactionForm.note
     };
     setTransactions([entry, ...transactions]);
-    setTransactionForm({ materialId: '', type: 'inbound', quantity: '', date: iso(0), relatedType: '', relatedId: '', relatedName: '', note: '' });
+    setTransactionForm({ materialId: '', type: 'inbound', quantity: '', date: iso(0), relatedType: '', relatedId: '', relatedName: '', bedName: '', crop: '', note: '' });
   };
 
   const deleteTransaction = (id) => {
@@ -482,13 +716,35 @@ function App() {
 
   const selectTransactionRelated = (type, id) => {
     if (!type || !id) {
-      setTransactionForm({ ...transactionForm, relatedType: '', relatedId: '', relatedName: '' });
+      setTransactionForm({ ...transactionForm, relatedType: '', relatedId: '', relatedName: '', bedName: '', crop: '' });
       return;
     }
     const opts = transactionRelatedOptions[type] || [];
     const found = opts.find((o) => o.id === id);
     if (found) {
-      setTransactionForm({ ...transactionForm, relatedType: type, relatedId: found.id, relatedName: found.name });
+      setTransactionForm({
+        ...transactionForm,
+        relatedType: type,
+        relatedId: found.id,
+        relatedName: found.name,
+        bedName: found.bedName || transactionForm.bedName,
+        crop: found.crop || transactionForm.crop
+      });
+    }
+  };
+
+  const selectTransactionBed = (bedId) => {
+    if (!bedId) {
+      setTransactionForm({ ...transactionForm, bedName: '', crop: '' });
+      return;
+    }
+    const bed = beds.find((b) => b.id === bedId);
+    if (bed) {
+      setTransactionForm({
+        ...transactionForm,
+        bedName: bed.name,
+        crop: bed.crop === '待播种' ? '' : bed.crop
+      });
     }
   };
 
@@ -550,7 +806,7 @@ function App() {
     setActiveTab('inventory');
   };
 
-  const quickConsumeForHarvest = (harvestId, harvestName) => {
+  const quickConsumeForHarvest = (harvestId, harvestName, bedName, crop) => {
     setTransactionForm({
       materialId: '',
       type: 'consume',
@@ -559,6 +815,56 @@ function App() {
       relatedType: 'harvest',
       relatedId: harvestId,
       relatedName: harvestName,
+      bedName: bedName || '',
+      crop: crop || '',
+      note: ''
+    });
+    setActiveTab('inventory');
+  };
+
+  const quickConsumeForPlant = (plantId, plantName, bedName, crop) => {
+    setTransactionForm({
+      materialId: '',
+      type: 'consume',
+      quantity: '',
+      date: iso(0),
+      relatedType: 'plant',
+      relatedId: plantId,
+      relatedName: plantName,
+      bedName: bedName || '',
+      crop: crop || '',
+      note: ''
+    });
+    setActiveTab('inventory');
+  };
+
+  const quickConsumeForInspection = (inspectionId, inspectionName, bedName, crop) => {
+    setTransactionForm({
+      materialId: '',
+      type: 'consume',
+      quantity: '',
+      date: iso(0),
+      relatedType: 'inspection',
+      relatedId: inspectionId,
+      relatedName: inspectionName,
+      bedName: bedName || '',
+      crop: crop || '',
+      note: ''
+    });
+    setActiveTab('inventory');
+  };
+
+  const quickConsumeForBed = (bedId, bedName, crop) => {
+    setTransactionForm({
+      materialId: '',
+      type: 'consume',
+      quantity: '',
+      date: iso(0),
+      relatedType: 'bed',
+      relatedId: bedId,
+      relatedName: bedName,
+      bedName: bedName || '',
+      crop: crop || '',
       note: ''
     });
     setActiveTab('inventory');
@@ -567,6 +873,130 @@ function App() {
   const getMaterialInfo = (materialId) => {
     const m = materials.find((x) => x.id === materialId);
     return m ? { name: m.name, category: m.category, unit: m.unit } : null;
+  };
+
+  const renderConsumptionSuggestions = (context, consumptions, setConsumptions) => {
+    const suggestions = getSuggestedMaterials(materials, context);
+    if (suggestions.length === 0) return null;
+
+    const addSuggestedMaterial = (rule) => {
+      const firstMat = rule.materials[0];
+      if (!firstMat) return;
+      const exists = consumptions.find(c => c.materialId === firstMat.id);
+      if (exists) return;
+      const entry = buildTransactionEntry(firstMat.id, materials, {
+        quantity: rule.defaultQty,
+        note: rule.label
+      });
+      if (entry) {
+        setConsumptions([...consumptions, entry]);
+      }
+    };
+
+    const removeConsumption = (materialId) => {
+      setConsumptions(consumptions.filter(c => c.materialId !== materialId));
+    };
+
+    const updateConsumptionQty = (materialId, qty) => {
+      setConsumptions(consumptions.map(c =>
+        c.materialId === materialId ? { ...c, quantity: Number(qty) || 0 } : c
+      ));
+    };
+
+    const addCustomMaterial = () => {
+      const availableMaterials = materials.filter(
+        m => !consumptions.find(c => c.materialId === m.id)
+      );
+      if (availableMaterials.length === 0) return;
+      const first = availableMaterials[0];
+      const entry = buildTransactionEntry(first.id, materials, { quantity: 1 });
+      if (entry) {
+        setConsumptions([...consumptions, entry]);
+      }
+    };
+
+    const changeCustomMaterial = (oldMaterialId, newMaterialId) => {
+      const existing = consumptions.find(c => c.materialId === newMaterialId);
+      if (existing) return;
+      const entry = buildTransactionEntry(newMaterialId, materials, { quantity: 1 });
+      if (entry) {
+        setConsumptions(consumptions.map(c =>
+          c.materialId === oldMaterialId ? entry : c
+        ));
+      }
+    };
+
+    const availableMaterials = materials.filter(
+      m => !consumptions.find(c => c.materialId === m.id)
+    );
+
+    return (
+      <div className="consumptionSuggestionSection">
+        <div className="consumptionSuggestionHeader">
+          <ArrowUpCircle size={16} />
+          <span>消耗建议</span>
+          <span className="consumptionSuggestionHint">（可选，同步记入库存消耗）</span>
+        </div>
+        <div className="suggestionQuickAdd">
+          {suggestions.map((rule, idx) => {
+            const firstMat = rule.materials[0];
+            const alreadyAdded = consumptions.find(c => c.materialId === firstMat?.id);
+            return (
+              <button
+                key={idx}
+                type="button"
+                className={`suggestionChip ${alreadyAdded ? 'added' : ''}`}
+                onClick={() => addSuggestedMaterial(rule)}
+                disabled={!!alreadyAdded}
+              >
+                <Package size={12} />
+                {rule.label}
+                {!alreadyAdded && <span className="suggestionQty">+{rule.defaultQty}{firstMat?.unit}</span>}
+                {alreadyAdded && ' ✓'}
+              </button>
+            );
+          })}
+        </div>
+        {consumptions.length > 0 && (
+          <div className="consumptionItems">
+            {consumptions.map((c) => (
+              <div key={c.materialId} className="consumptionItem">
+                <select
+                  value={c.materialId}
+                  onChange={(e) => changeCustomMaterial(c.materialId, e.target.value)}
+                >
+                  <option value={c.materialId}>{c.materialName}（{c.unit}）</option>
+                  {availableMaterials.map(m => (
+                    <option key={m.id} value={m.id}>{m.name}（{m.unit}）</option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="数量"
+                  value={c.quantity || ''}
+                  onChange={(e) => updateConsumptionQty(c.materialId, e.target.value)}
+                  style={{ width: '80px' }}
+                />
+                <span className="consumptionUnit">{c.unit}</span>
+                <button
+                  type="button"
+                  className="consumptionRemoveBtn"
+                  onClick={() => removeConsumption(c.materialId)}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            {availableMaterials.length > 0 && (
+              <button type="button" className="consumptionAddBtn" onClick={addCustomMaterial}>
+                <Plus size={12} /> 添加物资
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -829,11 +1259,15 @@ function App() {
               <input placeholder="重量" value={harvestForm.weight} onChange={(e) => setHarvestForm({ ...harvestForm, weight: e.target.value })} />
               <input type="date" value={harvestForm.date} onChange={(e) => setHarvestForm({ ...harvestForm, date: e.target.value })} />
               <input placeholder="备注" value={harvestForm.note} onChange={(e) => setHarvestForm({ ...harvestForm, note: e.target.value })} />
+              {renderConsumptionSuggestions({ type: 'harvest' }, harvestConsumptions, setHarvestConsumptions)}
               <button>保存采摘</button>
             </form>
             <div className="panel">
               <h2>待处理事项</h2>
-              {tasks.map((task) => (
+              {tasks.map((task) => {
+                const isExpanded = expandedTaskIds.includes(task.id);
+                const currentConsumptions = getTaskConsumptions(task.id);
+                return (
                 <div className="taskCard" key={task.id}>
                   <label className="task">
                     <input type="checkbox" checked={task.done} onChange={() => toggleTask(task.id)} />
@@ -852,11 +1286,35 @@ function App() {
                       })}
                     </div>
                   )}
-                  <button type="button" className="miniBtn" onClick={() => quickConsumeForTask(task.id, task.title)}>
-                    <ArrowUpCircle size={12} />登记消耗
-                  </button>
+                  <div className="taskActions">
+                    <button type="button" className="miniBtn" onClick={() => toggleTaskExpand(task.id)}>
+                      <ArrowUpCircle size={12} />{isExpanded ? '收起消耗' : '登记消耗'}
+                    </button>
+                    <button type="button" className="miniBtn" onClick={() => quickConsumeForTask(task.id, task.title)}>
+                      <History size={12} />流水登记
+                    </button>
+                  </div>
+                  {isExpanded && (
+                    <div className="taskConsumptionForm">
+                      {renderConsumptionSuggestions(
+                        { type: 'task' },
+                        currentConsumptions,
+                        (val) => setTaskConsumptionsById(task.id, val)
+                      )}
+                      {currentConsumptions.length > 0 && (
+                        <button
+                          type="button"
+                          className="saveConsumptionBtn"
+                          onClick={() => saveTaskConsumptions(task.id, task.title)}
+                        >
+                          <CheckCircle2 size={14} />确认登记消耗
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         </>
@@ -913,6 +1371,7 @@ function App() {
                 <option>成熟期</option>
               </select>
               <textarea placeholder="备注（种植密度、品种特性等）" rows="3" value={plantForm.note} onChange={(e) => setPlantForm({ ...plantForm, note: e.target.value })} />
+              {renderConsumptionSuggestions({ type: 'plant' }, plantConsumptions, setPlantConsumptions)}
               <button type="submit">保存计划</button>
             </form>
 
@@ -1240,7 +1699,212 @@ function App() {
               <h2>本月入库</h2>
               <p className="statNumber">{inventoryStats.monthlyInbound}<span>次</span></p>
             </article>
+            <article>
+              <h2>本月消耗</h2>
+              <p className="statNumber" style={{ color: '#8a5a2c' }}>{inventoryStats.monthlyConsume}<span>次</span></p>
+            </article>
+            <article>
+              <h2>累计消耗</h2>
+              <p className="statNumber" style={{ color: '#8a5a2c' }}>{inventoryStats.totalConsumeQty}<span>件</span></p>
+            </article>
+            <article>
+              <h2>涉及菜畦</h2>
+              <p className="statNumber" style={{ color: '#2c5f8a' }}>{inventoryStats.consumeBedCount}<span>块</span></p>
+            </article>
           </section>
+
+          {inventoryStats.topConsumedList.length > 0 && (
+            <section className="inventoryWarning" style={{ borderColor: '#dfe7d7', background: '#fff' }}>
+              <h2 style={{ color: '#8a5a2c' }}><ArrowUpCircle size={18} />消耗排行</h2>
+              <div className="warningCards">
+                {inventoryStats.topConsumedList.map((item, idx) => (
+                  <div key={item.name} className="warningCard" style={{ background: '#f8faf5', borderColor: '#dfe7d7' }}>
+                    <div className="warningInfo">
+                      <strong style={{ color: '#3c4d38' }}>{item.name}</strong>
+                      <span className={`categoryTag ${item.category}`}>{item.category}</span>
+                    </div>
+                    <div className="warningStock">
+                      <span className="warningCurrent" style={{ color: '#8a5a2c' }}>{item.total}<small style={{ fontSize: '13px', color: '#71806a', fontWeight: 'normal' }}>{item.unit}</small></span>
+                      <span className="warningThreshold" style={{ color: '#8a7a4e' }}>累计消耗</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {Object.keys(consumptionsByBedId).length > 0 && (
+            <section className="inventoryWarning" style={{ borderColor: '#dfe7d7', background: '#fff' }}>
+              <h2 style={{ color: '#3c4d38' }}><MapPin size={18} />按菜畦归因消耗</h2>
+              <div className="consumptionBreakdownGrid">
+                {Object.entries(consumptionsByBedId).map(([bedId, ts]) => {
+                  const bed = beds.find(b => b.id === bedId);
+                  if (!bed) return null;
+                  const summary = {};
+                  ts.forEach(t => {
+                    if (!summary[t.materialId]) {
+                      summary[t.materialId] = { name: t.materialName, total: 0, unit: t.unit };
+                    }
+                    summary[t.materialId].total += t.quantity;
+                  });
+                  return (
+                    <div key={bedId} className="consumptionBreakdownCard">
+                      <div className="consumptionBreakdownHeader">
+                        <strong>{bed.name}</strong>
+                        <span style={{ fontSize: '12px', color: '#5f7648' }}>{bed.crop}</span>
+                      </div>
+                      <div className="consumptionBreakdownItems">
+                        {Object.values(summary).map(s => (
+                          <span key={s.name} className="miniConsumeTag">
+                            {s.name} -{s.total}{s.unit}
+                          </span>
+                        ))}
+                      </div>
+                      {ts.length > 0 && (
+                        <div className="consumptionBreakdownAttribution">
+                          {(() => {
+                            const byType = {};
+                            ts.forEach(t => {
+                              const key = t.relatedType || 'unassigned';
+                              if (!byType[key]) byType[key] = [];
+                              byType[key].push(t);
+                            });
+                            return Object.entries(byType).map(([type, items]) => (
+                              <span key={type} className="attributionTag">
+                                {RELATED_TYPE_LABELS[type] || '未关联'} ×{items.length}
+                              </span>
+                            ));
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {Object.keys(consumptionsByCrop).length > 0 && (
+            <section className="inventoryWarning" style={{ borderColor: '#dfe7d7', background: '#fff' }}>
+              <h2 style={{ color: '#3c4d38' }}><Wheat size={18} />按作物归因消耗</h2>
+              <div className="consumptionBreakdownGrid">
+                {Object.entries(consumptionsByCrop).map(([crop, ts]) => {
+                  const summary = {};
+                  ts.forEach(t => {
+                    if (!summary[t.materialId]) {
+                      summary[t.materialId] = { name: t.materialName, total: 0, unit: t.unit };
+                    }
+                    summary[t.materialId].total += t.quantity;
+                  });
+                  return (
+                    <div key={crop} className="consumptionBreakdownCard">
+                      <div className="consumptionBreakdownHeader">
+                        <strong>{crop}</strong>
+                        <span style={{ fontSize: '12px', color: '#71806a' }}>{ts.length}条消耗</span>
+                      </div>
+                      <div className="consumptionBreakdownItems">
+                        {Object.values(summary).map(s => (
+                          <span key={s.name} className="miniConsumeTag">
+                            {s.name} -{s.total}{s.unit}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {Object.keys(inventoryStats.consumeByRelatedType).length > 0 && (
+            <section className="inventoryWarning" style={{ borderColor: '#dfe7d7', background: '#fff' }}>
+              <h2 style={{ color: '#3c4d38' }}><History size={18} />按任务类型归因</h2>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {Object.entries(inventoryStats.consumeByRelatedType).map(([type, qty]) => (
+                  <span key={type} className="consumptionTypeStat">
+                    {RELATED_TYPE_LABELS[type] || '未关联'}
+                    <strong>{qty}</strong>
+                  </span>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {Object.keys(consumptionsByTaskId).length > 0 && (
+            <section className="inventoryWarning" style={{ borderColor: '#dfe7d7', background: '#fff' }}>
+              <h2 style={{ color: '#3c4d38' }}><Clock size={18} />按任务明细归因消耗</h2>
+              <div className="consumptionBreakdownGrid">
+                {Object.entries(consumptionsByTaskId).map(([taskId, ts]) => {
+                  const task = tasks.find(t => t.id === taskId);
+                  if (!task) return null;
+                  const summary = {};
+                  ts.forEach(t => {
+                    if (!summary[t.materialId]) {
+                      summary[t.materialId] = { name: t.materialName, total: 0, unit: t.unit };
+                    }
+                    summary[t.materialId].total += t.quantity;
+                  });
+                  return (
+                    <div key={taskId} className="consumptionBreakdownCard">
+                      <div className="consumptionBreakdownHeader">
+                        <strong style={{ fontSize: '14px' }}>{task.title}</strong>
+                        <span style={{ fontSize: '12px', color: task.done ? '#71806a' : '#8a6a2c' }}>
+                          {task.done ? '已完成' : '待处理'}
+                        </span>
+                      </div>
+                      <p style={{ margin: '0 0 10px', fontSize: '12px', color: '#71806a' }}>
+                        负责人：{task.owner} · 截止：{task.due}
+                      </p>
+                      <div className="consumptionBreakdownItems">
+                        {Object.values(summary).map(s => (
+                          <span key={s.name} className="miniConsumeTag">
+                            {s.name} -{s.total}{s.unit}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {Object.keys(consumptionsByHarvestId).length > 0 && (
+            <section className="inventoryWarning" style={{ borderColor: '#dfe7d7', background: '#fff' }}>
+              <h2 style={{ color: '#3c4d38' }}><Wheat size={18} />按采收记录归因消耗</h2>
+              <div className="consumptionBreakdownGrid">
+                {Object.entries(consumptionsByHarvestId).map(([harvestId, ts]) => {
+                  const harvest = harvests.find(h => h.id === harvestId);
+                  if (!harvest) return null;
+                  const summary = {};
+                  ts.forEach(t => {
+                    if (!summary[t.materialId]) {
+                      summary[t.materialId] = { name: t.materialName, total: 0, unit: t.unit };
+                    }
+                    summary[t.materialId].total += t.quantity;
+                  });
+                  return (
+                    <div key={harvestId} className="consumptionBreakdownCard">
+                      <div className="consumptionBreakdownHeader">
+                        <strong style={{ fontSize: '14px' }}>{harvest.crop} {harvest.weight}</strong>
+                        <span style={{ fontSize: '12px', color: '#71806a' }}>{harvest.date}</span>
+                      </div>
+                      <p style={{ margin: '0 0 10px', fontSize: '12px', color: '#71806a' }}>
+                        菜畦：{harvest.bed}
+                      </p>
+                      <div className="consumptionBreakdownItems">
+                        {Object.values(summary).map(s => (
+                          <span key={s.name} className="miniConsumeTag">
+                            {s.name} -{s.total}{s.unit}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {lowStockItems.length > 0 && (
             <section className="inventoryWarning">
@@ -1312,15 +1976,33 @@ function App() {
                       <option value="">关联类型（可选）</option>
                       <option value="task">维护任务</option>
                       <option value="harvest">采摘记录</option>
+                      <option value="plant">种植计划</option>
+                      <option value="inspection">巡检处理</option>
+                      <option value="bed">菜畦直接消耗</option>
                     </select>
                     {transactionForm.relatedType && (
                       <select value={transactionForm.relatedId} onChange={(e) => selectTransactionRelated(transactionForm.relatedType, e.target.value)}>
-                        <option value="">选择{transactionForm.relatedType === 'task' ? '维护任务' : '采摘记录'}</option>
+                        <option value="">选择{
+                          transactionForm.relatedType === 'task' ? '维护任务' :
+                          transactionForm.relatedType === 'harvest' ? '采摘记录' :
+                          transactionForm.relatedType === 'plant' ? '种植计划' :
+                          transactionForm.relatedType === 'inspection' ? '巡检记录' :
+                          '菜畦'
+                        }</option>
                         {(transactionRelatedOptions[transactionForm.relatedType] || []).map((opt) => (
                           <option key={opt.id} value={opt.id}>{opt.name}</option>
                         ))}
                       </select>
                     )}
+                    <div className="grid2">
+                      <select value={transactionForm.bedName ? beds.find(b => b.name === transactionForm.bedName)?.id || '' : ''} onChange={(e) => selectTransactionBed(e.target.value)}>
+                        <option value="">归因菜畦（可选）</option>
+                        {consumeTransactionBedOptions.map((b) => (
+                          <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                      </select>
+                      <input placeholder="归因作物（可选）" value={transactionForm.crop} onChange={(e) => setTransactionForm({ ...transactionForm, crop: e.target.value })} />
+                    </div>
                   </>
                 )}
                 <input placeholder="备注" value={transactionForm.note} onChange={(e) => setTransactionForm({ ...transactionForm, note: e.target.value })} />
@@ -1430,7 +2112,7 @@ function App() {
             <div className="panel wide">
               <div className="toolbar">
                 <h2><History size={18} />流水记录</h2>
-                <div className="toolbarActions">
+                <div className="toolbarActions" style={{ flexWrap: 'wrap' }}>
                   <select className="filterSelect" value={transactionTypeFilter} onChange={(e) => setTransactionTypeFilter(e.target.value)}>
                     <option value="">全部类型</option>
                     <option value="inbound">入库</option>
@@ -1440,8 +2122,24 @@ function App() {
                     <option value="">全部物资</option>
                     {materials.map((m) => <option key={m.id} value={m.id}>{m.name}（{m.category}）</option>)}
                   </select>
-                  {(transactionTypeFilter || transactionMaterialFilter) && (
-                    <button className="clearBtn" onClick={() => { setTransactionTypeFilter(''); setTransactionMaterialFilter(''); }}>清除筛选</button>
+                  <select className="filterSelect" value={transactionRelatedTypeFilter} onChange={(e) => setTransactionRelatedTypeFilter(e.target.value)}>
+                    <option value="">全部关联</option>
+                    <option value="task">维护任务</option>
+                    <option value="harvest">采摘记录</option>
+                    <option value="plant">种植计划</option>
+                    <option value="inspection">巡检处理</option>
+                    <option value="bed">菜畦直接</option>
+                  </select>
+                  <select className="filterSelect" value={transactionBedFilter} onChange={(e) => setTransactionBedFilter(e.target.value)}>
+                    <option value="">全部菜畦</option>
+                    {transactionBedOptions.map((name) => <option key={name}>{name}</option>)}
+                  </select>
+                  <select className="filterSelect" value={transactionCropFilter} onChange={(e) => setTransactionCropFilter(e.target.value)}>
+                    <option value="">全部作物</option>
+                    {transactionCropOptions.map((name) => <option key={name}>{name}</option>)}
+                  </select>
+                  {(transactionTypeFilter || transactionMaterialFilter || transactionBedFilter || transactionCropFilter || transactionRelatedTypeFilter) && (
+                    <button className="clearBtn" onClick={() => { setTransactionTypeFilter(''); setTransactionMaterialFilter(''); setTransactionBedFilter(''); setTransactionCropFilter(''); setTransactionRelatedTypeFilter(''); }}>清除筛选</button>
                   )}
                 </div>
               </div>
@@ -1483,10 +2181,17 @@ function App() {
                           </span>
                           {t.relatedType && (
                             <span className="transactionRelated">
-                              {t.relatedType === 'task' ? '🔧' : '🌾'}{t.relatedName}
+                              {t.relatedType === 'task' ? '🔧' : t.relatedType === 'harvest' ? '🌾' : t.relatedType === 'plant' ? '🌱' : t.relatedType === 'inspection' ? '🐛' : '📍'}
+                              {RELATED_TYPE_LABELS[t.relatedType] || ''}：{t.relatedName}
                             </span>
                           )}
                         </div>
+                        {(t.bedName || t.crop) && (
+                          <div className="transactionBedCrop">
+                            {t.bedName && <span className="transactionBedTag"><MapPin size={10} />{t.bedName}</span>}
+                            {t.crop && <span className="transactionCropTag"><Wheat size={10} />{t.crop}</span>}
+                          </div>
+                        )}
                         {t.note && <p className="transactionNote">📝 {t.note}</p>}
                       </div>
                     </article>
@@ -1525,6 +2230,7 @@ function App() {
           transactions={transactions}
           tasks={tasks}
           inspections={inspections}
+          materials={materials}
           onAddInspection={(bed) => {
             if (bed && bed.id) {
               setPrefillBedId(bed.id);
@@ -1544,6 +2250,9 @@ function App() {
           setBeds={setBeds}
           prefillBedId={prefillBedId}
           onPrefillConsumed={() => setPrefillBedId('')}
+          materials={materials}
+          transactions={transactions}
+          setTransactions={setTransactions}
         />
       )}
 

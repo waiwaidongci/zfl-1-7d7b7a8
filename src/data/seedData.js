@@ -54,18 +54,25 @@ export const seedMaterials = [
 ];
 
 export const seedTransactions = [
-  { id: crypto.randomUUID(), materialId: seedMaterials[0].id, materialName: '薄荷种子', category: '种子', type: 'inbound', quantity: 20, unit: '包', date: iso(-15), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
-  { id: crypto.randomUUID(), materialId: seedMaterials[1].id, materialName: '樱桃番茄种子', category: '种子', type: 'inbound', quantity: 10, unit: '包', date: iso(-12), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
-  { id: crypto.randomUUID(), materialId: seedMaterials[2].id, materialName: '通用营养土', category: '营养土', type: 'inbound', quantity: 30, unit: '袋', date: iso(-10), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
-  { id: crypto.randomUUID(), materialId: seedMaterials[2].id, materialName: '通用营养土', category: '营养土', type: 'consume', quantity: 5, unit: '袋', date: iso(-3), relatedType: 'task', relatedId: seedTasks[1].id, relatedName: 'C02补土并翻松', note: 'C02补土5袋' },
-  { id: crypto.randomUUID(), materialId: seedMaterials[3].id, materialName: '有机堆肥', category: '肥料', type: 'inbound', quantity: 15, unit: '袋', date: iso(-8), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
-  { id: crypto.randomUUID(), materialId: seedMaterials[4].id, materialName: '水溶肥', category: '肥料', type: 'inbound', quantity: 6, unit: '瓶', date: iso(-7), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
-  { id: crypto.randomUUID(), materialId: seedMaterials[5].id, materialName: '修枝剪', category: '工具', type: 'inbound', quantity: 4, unit: '把', date: iso(-5), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
-  { id: crypto.randomUUID(), materialId: seedMaterials[6].id, materialName: '浇水壶', category: '工具', type: 'inbound', quantity: 5, unit: '把', date: iso(-5), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
-  { id: crypto.randomUUID(), materialId: seedMaterials[7].id, materialName: '绑藤绳', category: '耗材', type: 'inbound', quantity: 10, unit: '卷', date: iso(-6), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
-  { id: crypto.randomUUID(), materialId: seedMaterials[8].id, materialName: '防虫网', category: '耗材', type: 'inbound', quantity: 8, unit: '张', date: iso(-6), relatedType: '', relatedId: '', relatedName: '', note: '采购入库' },
-  { id: crypto.randomUUID(), materialId: seedMaterials[1].id, materialName: '樱桃番茄种子', category: '种子', type: 'consume', quantity: 2, unit: '包', date: iso(-2), relatedType: 'task', relatedId: seedTasks[0].id, relatedName: '检查A区滴灌头', note: 'B07播种用' },
-  { id: crypto.randomUUID(), materialId: seedMaterials[3].id, materialName: '有机堆肥', category: '肥料', type: 'consume', quantity: 3, unit: '袋', date: iso(-1), relatedType: 'harvest', relatedId: seedHarvests[1].id, relatedName: '樱桃番茄 2.1kg', note: '采摘后追肥' }
+  { id: crypto.randomUUID(), materialId: seedMaterials[0].id, materialName: '薄荷种子', category: '种子', type: 'inbound', quantity: 20, unit: '包', date: iso(-15), relatedType: '', relatedId: '', relatedName: '', bedName: '', crop: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[1].id, materialName: '樱桃番茄种子', category: '种子', type: 'inbound', quantity: 10, unit: '包', date: iso(-12), relatedType: '', relatedId: '', relatedName: '', bedName: '', crop: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[2].id, materialName: '通用营养土', category: '营养土', type: 'inbound', quantity: 30, unit: '袋', date: iso(-10), relatedType: '', relatedId: '', relatedName: '', bedName: '', crop: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[2].id, materialName: '通用营养土', category: '营养土', type: 'consume', quantity: 5, unit: '袋', date: iso(-3), relatedType: 'task', relatedId: seedTasks[1].id, relatedName: 'C02补土并翻松', bedName: 'C02轮作空畦', crop: '', note: 'C02补土5袋' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[3].id, materialName: '有机堆肥', category: '肥料', type: 'inbound', quantity: 15, unit: '袋', date: iso(-8), relatedType: '', relatedId: '', relatedName: '', bedName: '', crop: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[4].id, materialName: '水溶肥', category: '肥料', type: 'inbound', quantity: 6, unit: '瓶', date: iso(-7), relatedType: '', relatedId: '', relatedName: '', bedName: '', crop: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[5].id, materialName: '修枝剪', category: '工具', type: 'inbound', quantity: 4, unit: '把', date: iso(-5), relatedType: '', relatedId: '', relatedName: '', bedName: '', crop: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[6].id, materialName: '浇水壶', category: '工具', type: 'inbound', quantity: 5, unit: '把', date: iso(-5), relatedType: '', relatedId: '', relatedName: '', bedName: '', crop: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[7].id, materialName: '绑藤绳', category: '耗材', type: 'inbound', quantity: 10, unit: '卷', date: iso(-6), relatedType: '', relatedId: '', relatedName: '', bedName: '', crop: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[8].id, materialName: '防虫网', category: '耗材', type: 'inbound', quantity: 8, unit: '张', date: iso(-6), relatedType: '', relatedId: '', relatedName: '', bedName: '', crop: '', note: '采购入库' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[1].id, materialName: '樱桃番茄种子', category: '种子', type: 'consume', quantity: 2, unit: '包', date: iso(-2), relatedType: 'task', relatedId: seedTasks[0].id, relatedName: '检查A区滴灌头', bedName: 'B07番茄试验畦', crop: '樱桃番茄', note: 'B07播种用' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[3].id, materialName: '有机堆肥', category: '肥料', type: 'consume', quantity: 3, unit: '袋', date: iso(-1), relatedType: 'harvest', relatedId: seedHarvests[1].id, relatedName: '樱桃番茄 2.1kg', bedName: 'B07番茄试验畦', crop: '樱桃番茄', note: '采摘后追肥' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[0].id, materialName: '薄荷种子', category: '种子', type: 'consume', quantity: 1, unit: '包', date: iso(-30), relatedType: 'plant', relatedId: seedPlants[0].id, relatedName: 'A03薄荷香草畦-薄荷', bedName: 'A03薄荷香草畦', crop: '薄荷', note: 'A03薄荷播种' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[1].id, materialName: '樱桃番茄种子', category: '种子', type: 'consume', quantity: 2, unit: '包', date: iso(-45), relatedType: 'plant', relatedId: seedPlants[1].id, relatedName: 'B07番茄试验畦-樱桃番茄', bedName: 'B07番茄试验畦', crop: '樱桃番茄', note: 'B07番茄播种' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[2].id, materialName: '通用营养土', category: '营养土', type: 'consume', quantity: 4, unit: '袋', date: iso(-45), relatedType: 'plant', relatedId: seedPlants[1].id, relatedName: 'B07番茄试验畦-樱桃番茄', bedName: 'B07番茄试验畦', crop: '樱桃番茄', note: 'B07备土' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[8].id, materialName: '防虫网', category: '耗材', type: 'consume', quantity: 1, unit: '张', date: iso(-5), relatedType: 'inspection', relatedId: '', relatedName: 'B07番茄试验畦-虫害处理', bedName: 'B07番茄试验畦', crop: '樱桃番茄', note: '虫害防治覆盖防虫网' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[7].id, materialName: '绑藤绳', category: '耗材', type: 'consume', quantity: 1, unit: '卷', date: iso(-8), relatedType: 'plant', relatedId: seedPlants[1].id, relatedName: 'B07番茄试验畦-樱桃番茄', bedName: 'B07番茄试验畦', crop: '樱桃番茄', note: '番茄绑藤' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[4].id, materialName: '水溶肥', category: '肥料', type: 'consume', quantity: 1, unit: '瓶', date: iso(-10), relatedType: 'bed', relatedId: seedBeds[0].id, relatedName: 'A03薄荷香草畦', bedName: 'A03薄荷香草畦', crop: '薄荷', note: '薄荷叶面追肥' },
+  { id: crypto.randomUUID(), materialId: seedMaterials[3].id, materialName: '有机堆肥', category: '肥料', type: 'consume', quantity: 2, unit: '袋', date: iso(-20), relatedType: 'bed', relatedId: seedBeds[0].id, relatedName: 'A03薄荷香草畦', bedName: 'A03薄荷香草畦', crop: '薄荷', note: '薄荷基肥' }
 ];
 
 export const getWeekday = (dateStr) => {
@@ -74,4 +81,80 @@ export const getWeekday = (dateStr) => {
   if (isNaN(d.getTime())) return '';
   const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
   return weekdays[d.getDay()];
+};
+
+const SUGGESTION_RULES = {
+  plant: [
+    { categories: ['种子'], label: '播种用种', defaultQty: 2 },
+    { categories: ['营养土'], label: '备土建议', defaultQty: 3 },
+    { categories: ['肥料'], label: '基肥建议', defaultQty: 1 }
+  ],
+  harvest: [
+    { categories: ['肥料'], label: '采摘后追肥', defaultQty: 1 }
+  ],
+  inspection: {
+    pest: [{ categories: ['耗材'], label: '虫害防治', defaultQty: 1 }],
+    disease: [{ categories: ['肥料', '耗材'], label: '病害处理', defaultQty: 1 }],
+    nutrient_deficiency: [{ categories: ['肥料'], label: '缺肥补充', defaultQty: 2 }],
+    soil: [{ categories: ['营养土'], label: '土壤改善', defaultQty: 3 }],
+    water_shortage: [],
+    weed: [],
+    equipment: [{ categories: ['工具'], label: '设施维修', defaultQty: 1 }],
+    other: []
+  },
+  task: [
+    { categories: ['营养土'], label: '补土用资', defaultQty: 5 },
+    { categories: ['肥料'], label: '施肥用资', defaultQty: 2 }
+  ]
+};
+
+export const getSuggestedMaterials = (materials, context) => {
+  const { type, abnormalType } = context;
+  const suggestions = [];
+
+  let rules = [];
+  if (type === 'inspection') {
+    rules = SUGGESTION_RULES.inspection[abnormalType] || [];
+  } else {
+    rules = SUGGESTION_RULES[type] || [];
+  }
+
+  rules.forEach(rule => {
+    const matched = materials.filter(m => rule.categories.includes(m.category));
+    if (matched.length > 0) {
+      suggestions.push({ ...rule, materials: matched });
+    }
+  });
+
+  return suggestions;
+};
+
+export const RELATED_TYPE_LABELS = {
+  task: '维护任务',
+  harvest: '采摘记录',
+  plant: '种植计划',
+  inspection: '巡检处理',
+  bed: '菜畦直接'
+};
+
+export const buildTransactionEntry = (materialId, materials, overrides = {}) => {
+  const material = materials.find(m => m.id === materialId);
+  if (!material) return null;
+  return {
+    id: crypto.randomUUID(),
+    materialId: material.id,
+    materialName: material.name,
+    category: material.category,
+    type: 'consume',
+    quantity: 0,
+    unit: material.unit,
+    date: iso(0),
+    relatedType: '',
+    relatedId: '',
+    relatedName: '',
+    bedName: '',
+    crop: '',
+    note: '',
+    ...overrides
+  };
 };
