@@ -1148,19 +1148,40 @@ function App() {
     return { newBeds, newTasks, newInspections, newHarvests, newPlants, newTransactions, newContacts };
   };
 
+  const persistConsistencyData = ({
+    nextBeds,
+    nextTasks,
+    nextInspections,
+    nextHarvests,
+    nextPlants,
+    nextTransactions,
+    nextContacts
+  }) => {
+    setBeds(nextBeds);
+    setTasks(nextTasks);
+    setInspections(nextInspections);
+    setHarvests(nextHarvests);
+    setPlants(nextPlants);
+    setTransactions(nextTransactions);
+    setContacts(nextContacts);
+    setMaterials(materials);
+  };
+
   const handleFixIssue = (issue) => {
     return new Promise((resolve) => {
       setTimeout(() => {
         const { newBeds, newTasks, newInspections, newHarvests, newPlants, newTransactions, newContacts } = 
           applyFixToData(issue, beds, tasks, inspections, harvests, plants, transactions, contacts);
 
-        setBeds(newBeds);
-        setTasks(newTasks);
-        setInspections(newInspections);
-        setHarvests(newHarvests);
-        setPlants(newPlants);
-        setTransactions(newTransactions);
-        setContacts(newContacts);
+        persistConsistencyData({
+          nextBeds: newBeds,
+          nextTasks: newTasks,
+          nextInspections: newInspections,
+          nextHarvests: newHarvests,
+          nextPlants: newPlants,
+          nextTransactions: newTransactions,
+          nextContacts: newContacts
+        });
 
         setConsistencyIssues(prev => prev.filter(i => i.id !== issue.id));
 
@@ -1183,13 +1204,13 @@ function App() {
 
     if (autoFixable.length === 0) return;
 
-    let currentBeds = [...beds];
-    let currentTasks = [...tasks];
-    let currentInspections = [...inspections];
-    let currentHarvests = [...harvests];
-    let currentPlants = [...plants];
-    let currentTransactions = [...transactions];
-    let currentContacts = [...contacts];
+    let currentBeds = beds;
+    let currentTasks = tasks;
+    let currentInspections = inspections;
+    let currentHarvests = harvests;
+    let currentPlants = plants;
+    let currentTransactions = transactions;
+    let currentContacts = contacts;
     const fixedIds = new Set();
 
     for (const issue of autoFixable) {
@@ -1207,13 +1228,15 @@ function App() {
       fixedIds.add(issue.id);
     }
 
-    setBeds(currentBeds);
-    setTasks(currentTasks);
-    setInspections(currentInspections);
-    setHarvests(currentHarvests);
-    setPlants(currentPlants);
-    setTransactions(currentTransactions);
-    setContacts(currentContacts);
+    persistConsistencyData({
+      nextBeds: currentBeds,
+      nextTasks: currentTasks,
+      nextInspections: currentInspections,
+      nextHarvests: currentHarvests,
+      nextPlants: currentPlants,
+      nextTransactions: currentTransactions,
+      nextContacts: currentContacts
+    });
 
     setConsistencyIssues(prev => prev.filter(i => !fixedIds.has(i.id)));
 
