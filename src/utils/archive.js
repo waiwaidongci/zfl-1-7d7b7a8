@@ -325,10 +325,10 @@ export function computeDiff(localState, archiveData) {
       if (!local) {
         added.push({ id: item.id, incoming: item });
       } else if (deepEqual(local, item)) {
-        unchanged.push({ id: item.id });
+        unchanged.push({ id: item.id, item: local });
       } else {
         const conflictFields = findConflictFields(local, item);
-        if (conflictFields.length > 0) {
+        if (conflictFields.some((field) => field.isHigh)) {
           conflicts.push({ id: item.id, incoming: item, current: local, fields: conflictFields });
         } else {
           updated.push({ id: item.id, incoming: item, current: local });
@@ -402,6 +402,8 @@ export function applyImport(localState, archiveData, diff, resolution) {
 
   arrayKeys.forEach((key) => {
     const { added, updated, conflicts, unchanged, localOnly } = diff[key] || { added: [], updated: [], conflicts: [], unchanged: [], localOnly: [] };
+    const localMap = new Map((localState[key] || []).map(item => [item.id, item]));
+    const importMap = new Map((archiveData[key] || []).map(item => [item.id, item]));
     const idSet = new Set();
     const merged = [];
     summary.added[key] = 0;
@@ -440,6 +442,14 @@ export function applyImport(localState, archiveData, diff, resolution) {
           merged.push({ ...current });
           summary.conflictsResolvedAsCurrent[key]++;
         }
+        idSet.add(id);
+      }
+    });
+
+    unchanged.forEach(({ id, item }) => {
+      const source = item || localMap.get(id) || importMap.get(id);
+      if (source && !idSet.has(id)) {
+        merged.push({ ...source });
         idSet.add(id);
       }
     });
