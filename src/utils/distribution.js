@@ -125,14 +125,26 @@ export const getUniqueCrops = (harvests) => {
 
 export const getThisWeekRange = () => {
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dayOfWeek = today.getDay();
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   const start = new Date(today);
-  start.setDate(today.getDate() - today.getDay());
+  start.setDate(today.getDate() - daysToMonday);
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
   return {
     start: start.toISOString().slice(0, 10),
     end: end.toISOString().slice(0, 10)
   };
+};
+
+export const getThisWeekHarvests = (harvests) => {
+  const { start, end } = getThisWeekRange();
+  return filterHarvestsByRange(harvests, start, end);
+};
+
+export const getQueueStatsForWeek = (harvests) => {
+  return getQueueStats(getThisWeekHarvests(harvests));
 };
 
 export const parseWeight = (weightStr) => {

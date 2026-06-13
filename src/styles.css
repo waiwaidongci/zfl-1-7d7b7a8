@@ -450,94 +450,6 @@ textarea { width: 100%; border: 1px solid #cdd8c3; border-radius: 8px; padding: 
 
 .statSub { margin: 2px 0 0; font-size: 12px; color: #71806a; font-weight: 500; }
 
-.harvestQueueContainer { background: #fff; border: 1px solid #dfe7d7; border-radius: 8px; padding: 18px; box-shadow: 0 8px 26px rgb(44 61 34 / .07); }
-.queueHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
-.queueTitle { display: flex; align-items: center; gap: 10px; }
-.queueTitle h2 { margin: 0; }
-.queueCountBadge { background: #eef5e9; color: #2f613a; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-.queueHeaderActions { display: flex; gap: 8px; align-items: center; }
-
-.queueFilters { padding: 14px; background: #f8faf5; border-radius: 8px; margin-bottom: 14px; display: flex; flex-direction: column; gap: 10px; }
-.filterRow { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
-.filterRow label { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 120px; }
-.filterLabel { font-size: 11px; color: #71806a; font-weight: 500; }
-.filterRow input, .filterRow select { padding: 8px 10px; font-size: 13px; }
-.quickDateButtons { display: flex; gap: 6px; align-items: flex-end; }
-
-.queueTabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
-.queueTab { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: #f8faf5; border: 1px solid #dfe7d7; border-radius: 6px; font-size: 13px; color: #55624e; cursor: pointer; border-bottom: 3px solid transparent; transition: all .15s ease; }
-.queueTab:hover { background: #eef5e9; }
-.queueTab.active { background: #fff; font-weight: 600; }
-.queueTabCount { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 20px; padding: 0 6px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-
-.queueStatsStrip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
-.queueStatItem { padding: 10px 12px; background: #f8faf5; border-radius: 6px; display: flex; flex-direction: column; gap: 2px; }
-.queueStatLabel { font-size: 11px; font-weight: 500; }
-.queueStatValue { font-size: 16px; font-weight: 600; }
-.queueStatWeight { font-size: 11px; color: #71806a; }
-
-.queueList { display: grid; gap: 10px; }
-.queueCard { background: #fbfcf8; border: 1px solid #eef2eb; border-radius: 8px; padding: 14px; transition: box-shadow .15s ease; }
-.queueCard:hover { box-shadow: 0 4px 12px rgb(44 61 34 / .08); }
-.queueCard.queue-unassigned { background: #fefbf0; }
-.queueCard.queue-partial { background: #fefbf0; }
-.queueCard.queue-pendingPickup { background: #f5f8fc; }
-.queueCard.queue-overduePickup { background: #fef4ef; }
-
-.queueCardHeader { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; gap: 10px; flex-wrap: wrap; }
-.queueCardMain { display: flex; flex-direction: column; gap: 6px; }
-.queueCardBadge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; }
-.queueOverdueBadge { font-size: 11px; background: #fbe3e3; color: #8a2c2c; padding: 1px 6px; border-radius: 4px; font-weight: 600; margin-left: 4px; }
-.queueCardTitle { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.queueCardTitle strong { font-size: 15px; color: #243222; }
-.queueCardWeight { font-size: 13px; color: #2f613a; font-weight: 500; }
-.queueCardBed { font-size: 12px; color: #71806a; }
-.queueCardMeta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-.queueCardDate { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #71806a; }
-.queueDaysSince { font-size: 11px; color: #87917f; }
-
-.queueCardBody { display: flex; flex-direction: column; gap: 10px; }
-.queueProgressSection { display: flex; flex-direction: column; gap: 4px; }
-.queueProgressHeader { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
-.queueProgressBar { height: 6px; background: #eef2eb; border-radius: 3px; overflow: hidden; }
-.queueProgressFill { height: 100%; border-radius: 3px; transition: width .3s ease; }
-
-.queueDistributionSummary { display: flex; flex-wrap: wrap; gap: 6px; }
-.queueDistTag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 4px; font-size: 12px; background: #eef5e9; color: #55624e; }
-
-.queuePickupInfo { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; padding: 8px 10px; background: #eef5e9; border-radius: 6px; }
-.queuePickupWeight { color: #2c5f8a; font-weight: 500; }
-.queueNoticeInfo { display: inline-flex; align-items: center; gap: 4px; color: #3d7a2c; }
-.queueNoticeMissing { font-weight: 500; }
-
-.queueCardNote { margin: 0; font-size: 12px; color: #71806a; }
-
-.queueCardActions { display: flex; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #eef2eb; flex-wrap: wrap; }
-.queueCardActions .miniBtn { margin-left: 0; }
-.queueActionNotice { background: #e8f0fa !important; color: #2c5f8a !important; border-color: #a0c0e0 !important; }
-.queueActionNotice:hover { background: #d8e4f0 !important; }
-.queueActionOverdue { background: #fdece4 !important; color: #8b3f23 !important; border-color: #e8b0a0 !important; }
-.queueActionOverdue:hover { background: #f8ddd0 !important; }
-.queueActionConfirm { background: #eaf0f7 !important; color: #2c5f8a !important; border-color: #a0c0e0 !important; }
-.queueActionConfirm:hover { background: #d8e4f0 !important; }
-.queueActionDistribute { background: #e8f5e3 !important; color: #2f613a !important; border-color: #b8d8a8 !important; }
-.queueActionDistribute:hover { background: #d5edcc !important; }
-
-.dashboardQueueCard { background: #fff; border: 1px solid #dfe7d7; border-radius: 8px; padding: 16px; box-shadow: 0 8px 26px rgb(44 61 34 / .07); cursor: pointer; transition: box-shadow .15s ease, border-color .15s ease; }
-.dashboardQueueCard:hover { box-shadow: 0 8px 20px rgb(44 61 34 / .12); border-color: #b8d8a8; }
-.dashboardQueueHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.dashboardQueueHeader h2 { margin: 0; font-size: 16px; }
-.dashboardQueueStrip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.dashboardQueueItem { padding: 8px 10px; border-radius: 6px; display: flex; flex-direction: column; gap: 2px; background: #f8faf5; }
-.dashboardQueueLabel { font-size: 11px; color: #71806a; font-weight: 500; }
-.dashboardQueueValue { font-size: 18px; font-weight: 600; }
-.dashboardQueueWeight { font-size: 11px; color: #87917f; }
-
-.viewToggleBar { display: flex; gap: 6px; margin-bottom: 14px; }
-.viewToggleBtn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #fff; border: 1px solid #dfe7d7; border-radius: 6px; font-size: 13px; color: #55624e; cursor: pointer; }
-.viewToggleBtn.active { background: #2f613a; color: #fff; border-color: #2f613a; }
-.viewToggleBtn:hover:not(.active) { background: #eef5e9; }
-
 .floorMapToolbar {
   display: flex;
   justify-content: space-between;
@@ -1071,7 +983,7 @@ textarea { width: 100%; border: 1px solid #cdd8c3; border-radius: 8px; padding: 
   }
 }
 
-@media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } .toolbarActions { width: 100%; flex-direction: column; } .filterSelect { width: 100%; } .contactHeader { flex-direction: column; align-items: start; gap: 8px; } .plantDates { justify-content: space-between; } .stockRow { grid-template-columns: repeat(2, 1fr); } .warningCards { grid-template-columns: 1fr; } .transactionMeta { flex-direction: column; align-items: start; } .transactionHeader { flex-direction: column; align-items: start; gap: 8px; } .inventoryActions { flex-wrap: wrap; } .editFormActions { flex-direction: column; } .feeDetailRow { grid-template-columns: 1fr; } .feeHeader { flex-direction: column; align-items: start; } .feeActions { flex-wrap: wrap; } .feeSummaryBar { flex-direction: column; gap: 8px; } .feeExpiryCards { grid-template-columns: 1fr; } .feeExpiryCard { flex-direction: column; align-items: start; } .feeExpiryMeta { flex-direction: row; align-items: center; } .trendCharts { grid-template-columns: 1fr; } .envWaterValue { font-size: 36px; } .envSensorValue { font-size: 28px; } .distributionHarvestInfo { grid-template-columns: 1fr; } .distributionFields { grid-template-columns: 1fr; } .harvestMiniCard > div:first-child { flex-direction: column; align-items: start !important; gap: 6px; } .distributionStatusTag { align-self: flex-start; } .queueStatsStrip, .dashboardQueueStrip { grid-template-columns: repeat(2, 1fr); } .filterRow { flex-direction: column; } .filterRow label { min-width: 0; } }
+@media (max-width: 900px) { main { padding: 16px; } .hero, .toolbar { align-items: start; flex-direction: column; } .dashboard, .workspace, .bottom { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .tabs { overflow-x: auto; } .toolbarActions { width: 100%; flex-direction: column; } .filterSelect { width: 100%; } .contactHeader { flex-direction: column; align-items: start; gap: 8px; } .plantDates { justify-content: space-between; } .stockRow { grid-template-columns: repeat(2, 1fr); } .warningCards { grid-template-columns: 1fr; } .transactionMeta { flex-direction: column; align-items: start; } .transactionHeader { flex-direction: column; align-items: start; gap: 8px; } .inventoryActions { flex-wrap: wrap; } .editFormActions { flex-direction: column; } .feeDetailRow { grid-template-columns: 1fr; } .feeHeader { flex-direction: column; align-items: start; } .feeActions { flex-wrap: wrap; } .feeSummaryBar { flex-direction: column; gap: 8px; } .feeExpiryCards { grid-template-columns: 1fr; } .feeExpiryCard { flex-direction: column; align-items: start; } .feeExpiryMeta { flex-direction: row; align-items: center; } .trendCharts { grid-template-columns: 1fr; } .envWaterValue { font-size: 36px; } .envSensorValue { font-size: 28px; } .distributionHarvestInfo { grid-template-columns: 1fr; } .distributionFields { grid-template-columns: 1fr; } .harvestMiniCard > div:first-child { flex-direction: column; align-items: start !important; gap: 6px; } .distributionStatusTag { align-self: flex-start; } }
 
 .inspectionHero {
   display: flex;

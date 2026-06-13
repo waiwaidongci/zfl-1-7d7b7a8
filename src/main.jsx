@@ -41,7 +41,9 @@ import {
   checkPickupNoticeExists,
   findRelatedPickupNotice,
   getQueueStats,
-  getThisWeekRange
+  getQueueStatsForWeek,
+  getThisWeekRange,
+  getThisWeekHarvests
 } from './utils/distribution';
 import { getOverdueReviewTasks, syncAllInspections } from './utils/statusSync';
 import {
@@ -112,9 +114,6 @@ function App() {
   const filteredBeds = beds.filter((bed) => `${bed.name}${bed.crop}${bed.adopter}${bed.phone}`.includes(query.trim()));
   const activeCount = beds.filter((bed) => bed.status === '认养中').length;
   const warnings = beds.filter((bed) => bed.warning);
-
-  const dashboardQueueStats = useMemo(() => getQueueStats(harvests), [harvests]);
-  const dashboardWeekRange = useMemo(() => getThisWeekRange(), []);
 
   const addBed = (event) => {
     event.preventDefault();
@@ -333,22 +332,10 @@ function App() {
     setScheduleForm({ ...scheduleForm, date: dateStr, weekday: getWeekday(dateStr) });
   };
 
-  const scheduleStats = useMemo(() => {
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - today.getDay());
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-
-    const thisWeek = schedules.filter((s) => {
-      const d = new Date(s.date);
-      return d >= weekStart && d <= weekEnd;
-    });
-    const byDuty = thisWeek.reduce((acc, s) => {
-      acc[s.duty] = (acc[s.duty] || 0) + 1;
-      return acc;
-    }, {});
-    return { total: thisWeek.length, byDuty };
-  }, [schedules]);
+  const scheduleStats = useMemo(() => 
+    getWeeklyScheduleStats(schedules), 
+    [schedules]
+  );
 
   const weeklyVolunteerStats = useMemo(() => 
     getWeeklyVolunteerStats(schedules), 
@@ -366,6 +353,9 @@ function App() {
     }
     return checkAllScheduleConflicts(scheduleForm, schedules);
   }, [scheduleForm, schedules]);
+
+  const dashboardQueueStats = useMemo(() => getQueueStatsForWeek(harvests), [harvests]);
+  const dashboardWeekRange = useMemo(() => getThisWeekRange(), []);
 
   const calculateGrowthStage = (sowDate, harvestDate) => {
     const sow = new Date(sowDate);
@@ -1377,19 +1367,20 @@ function App() {
           <span><Droplets size={18} />{weekWater.length}块本周浇水</span>
           <span><TriangleAlert size={18} />{warnings.length}条异常</span>
           {(() => {
-            const qTotal = dashboardQueueStats.unassigned + dashboardQueueStats.partial + dashboardQueueStats.pendingPickup + dashboardQueueStats.overduePickup;
-            return qTotal > 0 ? (
+            const pendingTotal = dashboardQueueStats.unassigned + dashboardQueueStats.partial + dashboardQueueStats.pendingPickup + dashboardQueueStats.overduePickup;
+            return pendingTotal > 0 ? (
               <span
-                style={{ cursor: 'pointer', background: dashboardQueueStats.overduePickup > 0 ? 'rgba(139, 63, 35, 0.3)' : 'rgba(44, 95, 138, 0.3)' }}
+                className="heroConsistencyStat"
                 onClick={() => {
                   setDistInitialView('queue');
-                  setDistInitialQueueKey(dashboardQueueStats.overduePickup > 0 ? 'overduePickup' : '');
+                  setDistInitialQueueKey('');
                   setDistInitialStartDate(dashboardWeekRange.start);
                   setDistInitialEndDate(dashboardWeekRange.end);
                   setActiveTab('distribution');
                 }}
+                style={{ cursor: 'pointer', background: dashboardQueueStats.overduePickup > 0 ? 'rgba(139, 63, 35, 0.3)' : 'rgba(44, 95, 138, 0.25)' }}
               >
-                <ListTodo size={18} />{qTotal}项待处理采收
+                <ListTodo size={18} />{pendingTotal}项本周待处理采收
                 {dashboardQueueStats.overduePickup > 0 && <strong style={{ marginLeft: '4px' }}>({dashboardQueueStats.overduePickup}超期)</strong>}
               </span>
             ) : null;
@@ -1426,13 +1417,7 @@ function App() {
         <button className={activeTab === 'inventory' ? 'tab active' : 'tab'} onClick={() => setActiveTab('inventory')}>
           <Archive size={16} />物资库存
         </button>
-        <button className={activeTab === 'distribution' ? 'tab active' : 'tab'} onClick={() => {
-          setDistInitialView('list');
-          setDistInitialQueueKey('');
-          setDistInitialStartDate('');
-          setDistInitialEndDate('');
-          setActiveTab('distribution');
-        }}>
+        <button className={activeTab === 'distribution' ? 'tab active' : 'tab'} onClick={() => setActiveTab('distribution')}>
           <Package size={16} />采收分配
         </button>
         <button className={activeTab === 'floorPlan' ? 'tab active' : 'tab'} onClick={() => setActiveTab('floorPlan')}>
@@ -1481,43 +1466,6 @@ function App() {
               <h2>本周浇水</h2>
               {weekWater.map((bed) => <button className="listButton" key={bed.id} onClick={() => advanceWater(bed.id)}>{bed.name}<span>{bed.nextWater}</span></button>)}
             </article>
-            <div
-              className="dashboardQueueCard"
-              onClick={() => {
-                setDistInitialView('queue');
-                setDistInitialQueueKey('');
-                setDistInitialStartDate(dashboardWeekRange.start);
-                setDistInitialEndDate(dashboardWeekRange.end);
-                setActiveTab('distribution');
-              }}
-            >
-              <div className="dashboardQueueHeader">
-                <h2><ListTodo size={16} />本周待处理采收</h2>
-                <span style={{ fontSize: '12px', color: '#71806a' }}>点击查看队列 →</span>
-              </div>
-              <div className="dashboardQueueStrip">
-                <div className="dashboardQueueItem" style={{ borderLeft: '3px solid #8a2c2c' }}>
-                  <span className="dashboardQueueLabel" style={{ color: '#8a2c2c' }}>未分配</span>
-                  <strong className="dashboardQueueValue" style={{ color: '#8a2c2c' }}>{dashboardQueueStats.unassigned}</strong>
-                  {dashboardQueueStats.unassignedWeight > 0 && <span className="dashboardQueueWeight">{formatWeight(dashboardQueueStats.unassignedWeight)}</span>}
-                </div>
-                <div className="dashboardQueueItem" style={{ borderLeft: '3px solid #8a6a2c' }}>
-                  <span className="dashboardQueueLabel" style={{ color: '#8a6a2c' }}>部分分配</span>
-                  <strong className="dashboardQueueValue" style={{ color: '#8a6a2c' }}>{dashboardQueueStats.partial}</strong>
-                  {dashboardQueueStats.partialWeight > 0 && <span className="dashboardQueueWeight">{formatWeight(dashboardQueueStats.partialWeight)}</span>}
-                </div>
-                <div className="dashboardQueueItem" style={{ borderLeft: '3px solid #2c5f8a' }}>
-                  <span className="dashboardQueueLabel" style={{ color: '#2c5f8a' }}>待自取</span>
-                  <strong className="dashboardQueueValue" style={{ color: '#2c5f8a' }}>{dashboardQueueStats.pendingPickup}</strong>
-                  {dashboardQueueStats.pendingPickupWeight > 0 && <span className="dashboardQueueWeight">{formatWeight(dashboardQueueStats.pendingPickupWeight)}</span>}
-                </div>
-                <div className="dashboardQueueItem" style={{ borderLeft: '3px solid #8b3f23' }}>
-                  <span className="dashboardQueueLabel" style={{ color: '#8b3f23' }}>超期未取</span>
-                  <strong className="dashboardQueueValue" style={{ color: '#8b3f23' }}>{dashboardQueueStats.overduePickup}</strong>
-                  {dashboardQueueStats.overduePickupWeight > 0 && <span className="dashboardQueueWeight">{formatWeight(dashboardQueueStats.overduePickupWeight)}</span>}
-                </div>
-              </div>
-            </div>
             <article>
               <h2>最近采摘</h2>
               {harvests.slice(0, 4).map((item) => {

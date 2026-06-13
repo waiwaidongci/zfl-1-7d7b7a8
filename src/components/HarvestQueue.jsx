@@ -46,17 +46,24 @@ export function HarvestQueue({
   const [endDate, setEndDate] = useState(initialEndDate || '');
   const [showFilters, setShowFilters] = useState(false);
 
-  const queueStats = useMemo(() => getQueueStats(harvests), [harvests]);
+  const allQueueStats = useMemo(() => getQueueStats(harvests), [harvests]);
   const weekRange = useMemo(() => getThisWeekRange(), []);
   const uniqueBeds = useMemo(() => getUniqueBeds(harvests), [harvests]);
   const uniqueCrops = useMemo(() => getUniqueCrops(harvests), [harvests]);
 
-  const filteredHarvests = useMemo(() => {
+  const baseFilteredHarvests = useMemo(() => {
     let result = [...harvests];
-    result = getQueueHarvests(result, activeQueueKey);
     result = filterHarvestsByBed(result, bedFilter);
     result = filterHarvestsByCrop(result, cropFilter);
     result = filterHarvestsByRange(result, startDate, endDate);
+    return result;
+  }, [harvests, bedFilter, cropFilter, startDate, endDate]);
+
+  const queueStats = useMemo(() => getQueueStats(baseFilteredHarvests), [baseFilteredHarvests]);
+
+  const filteredHarvests = useMemo(() => {
+    let result = [...baseFilteredHarvests];
+    result = getQueueHarvests(result, activeQueueKey);
     return result.sort((a, b) => {
       const statusA = getQueueStatus(a);
       const statusB = getQueueStatus(b);
@@ -65,7 +72,7 @@ export function HarvestQueue({
       }
       return new Date(b.date) - new Date(a.date);
     });
-  }, [harvests, activeQueueKey, bedFilter, cropFilter, startDate, endDate]);
+  }, [baseFilteredHarvests, activeQueueKey]);
 
   const generatePickupNotice = (harvestId) => {
     const harvest = harvests.find(h => h.id === harvestId);

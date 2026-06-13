@@ -49,8 +49,6 @@ export function DistributionTab({
   const stats = useMemo(() => getDistributionStats(harvests), [harvests]);
   const pickupStats = useMemo(() => getPickupStats(harvests), [harvests]);
   const pickupWarnings = useMemo(() => getPickupWarnings(harvests), [harvests]);
-  const queueStats = useMemo(() => getQueueStats(harvests), [harvests]);
-  const weekRange = useMemo(() => getThisWeekRange(), []);
 
   const generatePickupNotice = (harvestId) => {
     const harvest = harvests.find(h => h.id === harvestId);
@@ -106,6 +104,55 @@ export function DistributionTab({
   const openDistribution = (harvest) => {
     setEditingHarvest(harvest);
   };
+
+  if (currentView === 'queue') {
+    return (
+      <>
+        <div style={{ marginBottom: '12px', display: 'flex', gap: '8px' }}>
+          <button
+            type="button"
+            className="miniBtn"
+            onClick={() => setCurrentView('list')}
+            style={{ background: '#fff', color: '#55624e', borderColor: '#cdd8c3' }}
+          >
+            <LayoutList size={14} />列表视图
+          </button>
+          <button
+            type="button"
+            className="miniBtn"
+            style={{ background: '#eef5e9', color: '#2f613a', borderColor: '#a0d0a0' }}
+          >
+            <ListTodo size={14} />采收队列
+          </button>
+        </div>
+        <HarvestQueue
+          harvests={harvests}
+          beds={beds}
+          contacts={contacts}
+          setContacts={setContacts}
+          setHarvests={setHarvests}
+          onOpenDistribution={openDistribution}
+          initialQueueKey={initialQueueKey}
+          initialStartDate={initialStartDate}
+          initialEndDate={initialEndDate}
+        />
+        {editingHarvest && (
+          <DistributionModal
+            harvest={editingHarvest}
+            onClose={() => setEditingHarvest(null)}
+            onSave={(dist) => saveDistribution(editingHarvest.id, dist)}
+            onConfirmPickup={() => {
+              confirmPickup(editingHarvest.id);
+              setEditingHarvest(null);
+            }}
+            beds={beds}
+            contacts={contacts}
+            setContacts={setContacts}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <>
@@ -281,36 +328,6 @@ export function DistributionTab({
         </section>
       )}
 
-      <div className="viewToggleBar">
-        <button
-          type="button"
-          className={`viewToggleBtn ${currentView === 'list' ? 'active' : ''}`}
-          onClick={() => setCurrentView('list')}
-        >
-          <LayoutList size={14} />列表视图
-        </button>
-        <button
-          type="button"
-          className={`viewToggleBtn ${currentView === 'queue' ? 'active' : ''}`}
-          onClick={() => setCurrentView('queue')}
-        >
-          <ListTodo size={14} />采收队列
-        </button>
-      </div>
-
-      {currentView === 'queue' ? (
-        <HarvestQueue
-          harvests={harvests}
-          beds={beds}
-          contacts={contacts}
-          setContacts={setContacts}
-          setHarvests={setHarvests}
-          onOpenDistribution={openDistribution}
-          initialQueueKey={initialQueueKey}
-          initialStartDate={initialStartDate}
-          initialEndDate={initialEndDate}
-        />
-      ) : (
       <section className="workspace">
         <form onSubmit={addHarvest} className="panel">
           <h2><Wheat size={18} />新增采摘记录</h2>
@@ -341,6 +358,14 @@ export function DistributionTab({
           <div className="toolbar">
             <h2>采收分配列表</h2>
             <div className="toolbarActions">
+              <button
+                type="button"
+                className="miniBtn"
+                onClick={() => setCurrentView('queue')}
+                style={{ background: '#eef5e9', color: '#2f613a', borderColor: '#a0d0a0' }}
+              >
+                <ListTodo size={14} />采收队列
+              </button>
               <select className="filterSelect" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                 <option value="">全部状态</option>
                 <option value="unassigned">未分配</option>
@@ -475,7 +500,6 @@ export function DistributionTab({
           )}
         </div>
       </section>
-      )}
 
       {editingHarvest && (
         <DistributionModal
