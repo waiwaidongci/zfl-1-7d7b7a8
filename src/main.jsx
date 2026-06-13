@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { CalendarDays, Clock, CheckCircle2, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, User, Heart, Map, Bug, Database, Wrench, AlertTriangle, Info, RefreshCw, TrendingUp, ListTodo } from 'lucide-react';
 import './styles.css';
@@ -106,6 +106,7 @@ function App() {
   const [distInitialQueueKey, setDistInitialQueueKey] = useState('');
   const [distInitialStartDate, setDistInitialStartDate] = useState('');
   const [distInitialEndDate, setDistInitialEndDate] = useState('');
+  const [distQueueRequestId, setDistQueueRequestId] = useState(0);
 
   const weekWater = beds.filter((bed) => {
     const days = (new Date(bed.nextWater) - today) / 86400000;
@@ -356,18 +357,6 @@ function App() {
 
   const dashboardQueueStats = useMemo(() => getQueueStatsForWeek(harvests), [harvests]);
   const dashboardWeekRange = useMemo(() => getThisWeekRange(), []);
-
-  useEffect(() => {
-    if (activeTab === 'distribution' && distInitialView) {
-      const timer = setTimeout(() => {
-        setDistInitialView('list');
-        setDistInitialQueueKey('');
-        setDistInitialStartDate('');
-        setDistInitialEndDate('');
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [activeTab, distInitialView]);
 
   const calculateGrowthStage = (sowDate, harvestDate) => {
     const sow = new Date(sowDate);
@@ -1388,6 +1377,7 @@ function App() {
                   setDistInitialQueueKey('');
                   setDistInitialStartDate(dashboardWeekRange.start);
                   setDistInitialEndDate(dashboardWeekRange.end);
+                  setDistQueueRequestId((id) => id + 1);
                   setActiveTab('distribution');
                 }}
                 style={{ cursor: 'pointer', background: dashboardQueueStats.overduePickup > 0 ? 'rgba(139, 63, 35, 0.3)' : 'rgba(44, 95, 138, 0.25)' }}
@@ -2788,6 +2778,7 @@ function App() {
           initialQueueKey={distInitialQueueKey}
           initialStartDate={distInitialStartDate}
           initialEndDate={distInitialEndDate}
+          queueRequestId={distQueueRequestId}
         />
       )}
 

@@ -39,7 +39,8 @@ export function DistributionTab({
   harvests, setHarvests, harvestOptions, harvestForm, setHarvestForm, addHarvest,
   beds, contacts, setContacts,
   materials, harvestConsumptions, setHarvestConsumptions, renderConsumptionSuggestions,
-  initialView = 'list', initialQueueKey = '', initialStartDate = '', initialEndDate = ''
+  initialView = 'list', initialQueueKey = '', initialStartDate = '', initialEndDate = '',
+  queueRequestId = 0
 }) {
   const [editingHarvest, setEditingHarvest] = useState(null);
   const [statusFilter, setStatusFilter] = useState('');
@@ -47,10 +48,10 @@ export function DistributionTab({
   const [currentView, setCurrentView] = useState(initialView);
 
   useEffect(() => {
-    if (initialView) {
+    if (queueRequestId > 0 && initialView) {
       setCurrentView(initialView);
     }
-  }, [initialView]);
+  }, [queueRequestId, initialView]);
 
   const stats = useMemo(() => getDistributionStats(harvests), [harvests]);
   const pickupStats = useMemo(() => getPickupStats(harvests), [harvests]);
@@ -141,6 +142,7 @@ export function DistributionTab({
           initialQueueKey={initialQueueKey}
           initialStartDate={initialStartDate}
           initialEndDate={initialEndDate}
+          queueRequestId={queueRequestId}
         />
         {editingHarvest && (
           <DistributionModal

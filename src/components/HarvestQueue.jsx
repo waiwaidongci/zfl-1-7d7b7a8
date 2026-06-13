@@ -37,7 +37,8 @@ export function HarvestQueue({
   onOpenDistribution,
   initialQueueKey = '',
   initialStartDate = '',
-  initialEndDate = ''
+  initialEndDate = '',
+  queueRequestId = 0
 }) {
   const [activeQueueKey, setActiveQueueKey] = useState(initialQueueKey || '');
   const [bedFilter, setBedFilter] = useState('');
@@ -50,7 +51,7 @@ export function HarvestQueue({
     if (initialQueueKey !== undefined && initialQueueKey !== null) {
       setActiveQueueKey(initialQueueKey);
     }
-  }, [initialQueueKey]);
+  }, [initialQueueKey, queueRequestId]);
 
   useEffect(() => {
     if (initialStartDate !== undefined && initialStartDate !== null) {
@@ -59,7 +60,7 @@ export function HarvestQueue({
     if (initialEndDate !== undefined && initialEndDate !== null) {
       setEndDate(initialEndDate);
     }
-  }, [initialStartDate, initialEndDate]);
+  }, [initialStartDate, initialEndDate, queueRequestId]);
 
   const allQueueStats = useMemo(() => getQueueStats(harvests), [harvests]);
   const weekRange = useMemo(() => getThisWeekRange(), []);
