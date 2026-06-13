@@ -1,9 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import {
   Wheat, Search, AlertCircle, CheckCircle2, Clock, Package,
-  User, Users, Heart, Trash2, Filter, CalendarDays, Bell, MessageCircle
+  User, Users, Heart, Trash2, Filter, CalendarDays, Bell, MessageCircle,
+  ListTodo, LayoutList
 } from 'lucide-react';
 import { DistributionModal } from './DistributionModal';
+import { HarvestQueue } from './HarvestQueue';
 import {
   DISTRIBUTION_TYPES,
   DISTRIBUTION_OVERDUE_DAYS,
@@ -20,7 +22,9 @@ import {
   generatePickupNoticeContact,
   confirmPickupContact,
   checkPickupNoticeExists,
-  findRelatedPickupNotice
+  findRelatedPickupNotice,
+  getQueueStats,
+  getThisWeekRange
 } from '../utils/distribution';
 import { iso } from '../data/seedData';
 
@@ -34,15 +38,19 @@ const typeIcons = {
 export function DistributionTab({
   harvests, setHarvests, harvestOptions, harvestForm, setHarvestForm, addHarvest,
   beds, contacts, setContacts,
-  materials, harvestConsumptions, setHarvestConsumptions, renderConsumptionSuggestions
+  materials, harvestConsumptions, setHarvestConsumptions, renderConsumptionSuggestions,
+  initialView = 'list', initialQueueKey = '', initialStartDate = '', initialEndDate = ''
 }) {
   const [editingHarvest, setEditingHarvest] = useState(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [query, setQuery] = useState('');
+  const [currentView, setCurrentView] = useState(initialView);
 
   const stats = useMemo(() => getDistributionStats(harvests), [harvests]);
   const pickupStats = useMemo(() => getPickupStats(harvests), [harvests]);
   const pickupWarnings = useMemo(() => getPickupWarnings(harvests), [harvests]);
+  const queueStats = useMemo(() => getQueueStats(harvests), [harvests]);
+  const weekRange = useMemo(() => getThisWeekRange(), []);
 
   const generatePickupNotice = (harvestId) => {
     const harvest = harvests.find(h => h.id === harvestId);
@@ -273,6 +281,36 @@ export function DistributionTab({
         </section>
       )}
 
+      <div className="viewToggleBar">
+        <button
+          type="button"
+          className={`viewToggleBtn ${currentView === 'list' ? 'active' : ''}`}
+          onClick={() => setCurrentView('list')}
+        >
+          <LayoutList size={14} />列表视图
+        </button>
+        <button
+          type="button"
+          className={`viewToggleBtn ${currentView === 'queue' ? 'active' : ''}`}
+          onClick={() => setCurrentView('queue')}
+        >
+          <ListTodo size={14} />采收队列
+        </button>
+      </div>
+
+      {currentView === 'queue' ? (
+        <HarvestQueue
+          harvests={harvests}
+          beds={beds}
+          contacts={contacts}
+          setContacts={setContacts}
+          setHarvests={setHarvests}
+          onOpenDistribution={openDistribution}
+          initialQueueKey={initialQueueKey}
+          initialStartDate={initialStartDate}
+          initialEndDate={initialEndDate}
+        />
+      ) : (
       <section className="workspace">
         <form onSubmit={addHarvest} className="panel">
           <h2><Wheat size={18} />新增采摘记录</h2>
@@ -437,6 +475,7 @@ export function DistributionTab({
           )}
         </div>
       </section>
+      )}
 
       {editingHarvest && (
         <DistributionModal

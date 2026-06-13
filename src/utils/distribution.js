@@ -8,6 +8,133 @@ export const DISTRIBUTION_TYPES = [
 export const DISTRIBUTION_OVERDUE_DAYS = 3;
 export const PICKUP_CONFIRM_OVERDUE_DAYS = 2;
 
+export const QUEUE_STATUS = [
+  { key: 'unassigned', label: '未分配', color: '#8a2c2c', icon: 'alert', priority: 1 },
+  { key: 'partial', label: '部分分配', color: '#8a6a2c', icon: 'clock', priority: 2 },
+  { key: 'pendingPickup', label: '待自取', color: '#2c5f8a', icon: 'bell', priority: 3 },
+  { key: 'overduePickup', label: '超期未取', color: '#8b3f23', icon: 'alert', priority: 4 },
+  { key: 'completed', label: '已完成', color: '#3d7a2c', icon: 'check', priority: 5 }
+];
+
+export const getQueueStatusKey = (harvest) => {
+  if (!harvest) return 'completed';
+  const distStatus = getDistributionStatus(harvest);
+  const pickupStatus = getPickupStatus(harvest);
+
+  if (pickupStatus.key === 'pending') {
+    return pickupStatus.isOverdue ? 'overduePickup' : 'pendingPickup';
+  }
+  if (distStatus.key === 'unassigned') return 'unassigned';
+  if (distStatus.key === 'partial') return 'partial';
+  return 'completed';
+};
+
+export const getQueueStatus = (harvest) => {
+  const key = getQueueStatusKey(harvest);
+  const status = QUEUE_STATUS.find(s => s.key === key) || QUEUE_STATUS[4];
+  const distStatus = getDistributionStatus(harvest);
+  const pickupStatus = getPickupStatus(harvest);
+  return {
+    ...status,
+    distributionOverdue: distStatus.isOverdue,
+    pickupOverdue: pickupStatus.isOverdue,
+    pickupDaysSince: pickupStatus.daysSince || 0,
+    distributionKey: distStatus.key,
+    pickupKey: pickupStatus.key
+  };
+};
+
+export const getQueueStats = (harvests) => {
+  const stats = {
+    unassigned: 0,
+    partial: 0,
+    pendingPickup: 0,
+    overduePickup: 0,
+    completed: 0,
+    unassignedWeight: 0,
+    partialWeight: 0,
+    pendingPickupWeight: 0,
+    overduePickupWeight: 0,
+    total: harvests.length
+  };
+
+  for (const h of harvests) {
+    const key = getQueueStatusKey(h);
+    const remaining = getDistributionRemaining(h);
+    const pickupGrams = getSelfPickupGrams(h.distribution);
+    const pickupStatus = getPickupStatus(h);
+
+    if (key === 'unassigned') {
+      stats.unassigned++;
+      stats.unassignedWeight += remaining;
+    } else if (key === 'partial') {
+      stats.partial++;
+      stats.partialWeight += remaining;
+    } else if (key === 'pendingPickup') {
+      stats.pendingPickup++;
+      if (pickupStatus.key === 'pending') {
+        stats.pendingPickupWeight += pickupGrams;
+      }
+    } else if (key === 'overduePickup') {
+      stats.overduePickup++;
+      stats.overduePickupWeight += pickupGrams;
+    } else {
+      stats.completed++;
+    }
+  }
+
+  return stats;
+};
+
+export const getQueueHarvests = (harvests, queueKey) => {
+  if (!queueKey) return harvests;
+  return harvests.filter(h => getQueueStatusKey(h) === queueKey);
+};
+
+export const filterHarvestsByRange = (harvests, startDate, endDate) => {
+  if (!startDate && !endDate) return harvests;
+  return harvests.filter(h => {
+    const d = new Date(h.date);
+    if (startDate && d < new Date(startDate)) return false;
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      if (d > end) return false;
+    }
+    return true;
+  });
+};
+
+export const filterHarvestsByBed = (harvests, bedName) => {
+  if (!bedName) return harvests;
+  return harvests.filter(h => h.bed === bedName);
+};
+
+export const filterHarvestsByCrop = (harvests, cropName) => {
+  if (!cropName) return harvests;
+  return harvests.filter(h => h.crop.includes(cropName));
+};
+
+export const getUniqueBeds = (harvests) => {
+  return [...new Set(harvests.map(h => h.bed))].sort();
+};
+
+export const getUniqueCrops = (harvests) => {
+  return [...new Set(harvests.map(h => h.crop))].sort();
+};
+
+export const getThisWeekRange = () => {
+  const today = new Date();
+  const start = new Date(today);
+  start.setDate(today.getDate() - today.getDay());
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10)
+  };
+};
+
 export const parseWeight = (weightStr) => {
   if (!weightStr || typeof weightStr !== 'string') return 0;
   const cleaned = weightStr.trim().toLowerCase();
@@ -302,4 +429,10 @@ export const confirmPickupContact = (contacts, harvestId) => {
 
 export const checkPickupNoticeExists = (contacts, harvestId) => {
   return !!findRelatedPickupNotice(contacts, harvestId);
+};
+
+export const iso = (offset = 0) => {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.toISOString().slice(0, 10);
 };
