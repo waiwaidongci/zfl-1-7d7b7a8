@@ -10,7 +10,7 @@ import { buildZoneStats, filterBedsByZone, filterBedPlacementByZone } from '../u
 export function FloorPlanTab({
   beds, setBeds, bedPlacement, setBedPlacement,
   plants, contacts, harvests, transactions, tasks, inspections, materials,
-  onAddInspection
+  onAddInspection, onCreatePlantFromBed, onCreateTaskFromBed
 }) {
   const [selectedBed, setSelectedBed] = useState(null);
   const [selectedCellId, setSelectedCellId] = useState(null);
@@ -273,6 +273,8 @@ export function FloorPlanTab({
           bedPlacement={bedPlacement}
           materials={materials}
           beds={beds}
+          onCreatePlant={onCreatePlantFromBed}
+          onCreateTask={onCreateTaskFromBed}
         />
       )}
 

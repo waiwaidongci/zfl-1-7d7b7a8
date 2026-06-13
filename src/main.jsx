@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { CalendarDays, Clock, CheckCircle2, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, User, Heart, Map, Bug, Database, Wrench, AlertTriangle, Info, RefreshCw } from 'lucide-react';
+import { CalendarDays, Clock, CheckCircle2, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, User, Heart, Map, Bug, Database, Wrench, AlertTriangle, Info, RefreshCw, TrendingUp, ListTodo } from 'lucide-react';
 import './styles.css';
 
 import {
@@ -8,6 +8,7 @@ import {
   seedPlants, seedMaterials, seedTransactions, iso, getWeekday,
   getSuggestedMaterials, RELATED_TYPE_LABELS, buildTransactionEntry
 } from './data/seedData';
+import { CropRotationPanel } from './components/CropRotationPanel';
 import { seedInspections, bedPlacementSeed } from './data/inspectionData';
 import { useStoredState } from './hooks/useStoredState';
 import { DistributionTab } from './components/DistributionTab';
@@ -404,6 +405,63 @@ function App() {
 
   const deletePlant = (id) => {
     setPlants(plants.filter((p) => p.id !== id));
+  };
+
+  const addPlantFromRotation = (plantData) => {
+    if (!plantData || !plantData.bedId || !plantData.crop) return;
+    const newId = crypto.randomUUID();
+    const stage = calculateGrowthStage(plantData.sowDate, plantData.harvestDate);
+    setPlants([{ ...plantData, id: newId, growthStage: stage }, ...plants]);
+    setActiveTab('plants');
+  };
+
+  const addTaskFromRotation = (taskData) => {
+    if (!taskData || !taskData.title) return;
+    const newId = crypto.randomUUID();
+    setTasks([{ ...taskData, id: newId }, ...tasks]);
+    setActiveTab('dashboard');
+  };
+
+  const handleCreatePlantFromBed = (bed, suggestion, availableDate) => {
+    if (!bed || !suggestion) return;
+    const growthDays = suggestion.growthDays || 30;
+    const sowDate = availableDate || iso(0);
+    const harvestDateObj = new Date(sowDate);
+    harvestDateObj.setDate(harvestDateObj.getDate() + growthDays);
+    const harvestDate = harvestDateObj.toISOString().slice(0, 10);
+    const stage = calculateGrowthStage(sowDate, harvestDate);
+
+    const newPlant = {
+      id: crypto.randomUUID(),
+      bedId: bed.id,
+      bedName: bed.name,
+      crop: suggestion.crop,
+      sowDate,
+      harvestDate,
+      growthStage: stage,
+      note: `轮作规划推荐 · ${suggestion.reason}`
+    };
+    setPlants([newPlant, ...plants]);
+    setActiveTab('plants');
+  };
+
+  const handleCreateTaskFromBed = (bed, suggestion, availableDate) => {
+    if (!bed || !suggestion) return;
+    const taskDate = availableDate || iso(0);
+    const newTask = {
+      id: crypto.randomUUID(),
+      title: `${bed.name} 播种${suggestion.crop}`,
+      owner: '园艺管家',
+      due: taskDate,
+      done: false,
+      note: `轮作规划推荐 · ${suggestion.reason}`,
+      relatedBedId: bed.id,
+      relatedBedName: bed.name,
+      relatedCrop: suggestion.crop,
+      source: 'rotation_plan'
+    };
+    setTasks([newTask, ...tasks]);
+    setActiveTab('dashboard');
   };
 
   const updatePlantGrowthStage = (id) => {
@@ -1285,6 +1343,9 @@ function App() {
         <button className={activeTab === 'plants' ? 'tab active' : 'tab'} onClick={() => setActiveTab('plants')}>
           <Sprout size={16} />种植计划
         </button>
+        <button className={activeTab === 'rotation' ? 'tab active' : 'tab'} onClick={() => setActiveTab('rotation')}>
+          <TrendingUp size={16} />轮作规划
+        </button>
         <button className={activeTab === 'contacts' ? 'tab active' : 'tab'} onClick={() => setActiveTab('contacts')}>
           <MessageCircle size={16} />联系记录
         </button>
@@ -1811,6 +1872,19 @@ function App() {
             </section>
           )}
         </>
+      )}
+
+      {activeTab === 'rotation' && (
+        <CropRotationPanel
+          beds={beds}
+          plants={plants}
+          harvests={harvests}
+          bedPlacement={bedPlacement}
+          onAddPlant={addPlantFromRotation}
+          onAddTask={addTaskFromRotation}
+          onSwitchToPlants={() => setActiveTab('plants')}
+          onSwitchToTasks={() => setActiveTab('dashboard')}
+        />
       )}
 
       {activeTab === 'contacts' && (
@@ -2544,6 +2618,8 @@ function App() {
             }
             setActiveTab('inspection');
           }}
+          onCreatePlantFromBed={handleCreatePlantFromBed}
+          onCreateTaskFromBed={handleCreateTaskFromBed}
         />
       )}
 

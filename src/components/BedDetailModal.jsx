@@ -1,19 +1,25 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   X, User, Phone, CalendarDays, Droplets, TriangleAlert,
   Users, MessageCircle, Wheat, Package, Sprout, AlertCircle,
   CheckCircle2, Clock, Bug, Search, MapPin, Calendar,
-  AlertTriangle, ArrowUpCircle
+  AlertTriangle, ArrowUpCircle, TrendingUp, Plus, ListTodo
 } from 'lucide-react';
 import { getWaterUrgency, STATUS_STYLES, getZoneOfBed } from '../config/floorPlan';
 import { getBedInspectionSummary, getFollowupStatus } from '../utils/statusSync';
 import { getAbnormalTypeInfo } from '../data/inspectionData';
 import { RELATED_TYPE_LABELS } from '../data/seedData';
+import {
+  getBedStatusForRotation,
+  getBedHistoryCrops,
+  generateCropSuggestions,
+  ROTATION_STATUS_LABELS
+} from '../utils/cropRotation';
 
 export function BedDetailModal({
   bed, plants, contacts, harvests, transactions, tasks,
   inspections, onClose, onQuickWater, onAddInspection, bedPlacement,
-  materials, beds
+  materials, beds, onCreatePlant, onCreateTask
 }) {
   if (!bed) return null;
 
@@ -116,6 +122,18 @@ export function BedDetailModal({
   const bedZone = useMemo(() =>
     getZoneOfBed(bed, bedPlacement),
     [bed, bedPlacement]);
+
+  const rotationInfo = useMemo(() => {
+    const bedInfo = getBedStatusForRotation(bed, plants, bedPlacement);
+    const history = getBedHistoryCrops(bed, harvests, plants);
+    const suggestions = generateCropSuggestions(bedInfo, history);
+    return {
+      ...bedInfo,
+      history,
+      suggestions,
+      statusLabel: ROTATION_STATUS_LABELS[bedInfo.status]
+    };
+  }, [bed, plants, bedPlacement, harvests]);
 
   const statusStyle = STATUS_STYLES[bed.status] || STATUS_STYLES['空闲'];
 
@@ -416,6 +434,82 @@ export function BedDetailModal({
               })}
             </div>
           )}
+
+          <div className="bedDetailSection rotationSection">
+            <div className="sectionHeaderWithBadge">
+              <h4><TrendingUp size={16} />轮作规划建议</h4>
+              <span
+                className="rotationStatusBadge"
+                style={{
+                  background: rotationInfo.statusLabel.bg,
+                  color: rotationInfo.statusLabel.color
+                }}
+              >
+                {rotationInfo.statusLabel.label}
+              </span>
+            </div>
+            <p style={{ margin: '8px 0 0', fontSize: '13px', color: '#55624e' }}>
+              <Calendar size={12} />
+              {rotationInfo.status === 'idle'
+                ? '菜畦空闲，可立即安排种植'
+                : `预计 ${rotationInfo.availableDate} 可安排下一茬（${rotationInfo.daysUntilAvailable}天后）`}
+            </p>
+
+            {rotationInfo.history.length > 0 && (
+              <div style={{ marginTop: '12px' }}>
+                <p style={{ fontSize: '12px', color: '#71806a', marginBottom: '6px' }}>历史种植：</p>
+                <div className="historyChips">
+                  {rotationInfo.history.slice(0, 4).map((h, idx) => (
+                    <span key={idx} className="historyChip">
+                      {h.crop}
+                      <span className="historyDate">{h.date}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {rotationInfo.suggestions.length > 0 && (
+              <div style={{ marginTop: '12px' }}>
+                <p style={{ fontSize: '12px', color: '#71806a', marginBottom: '8px' }}>推荐作物：</p>
+                <div className="rotationSuggestionList">
+                  {rotationInfo.suggestions.map((suggestion, idx) => (
+                    <div key={idx} className="rotationSuggestionItem">
+                      <div className="suggestionRank">{idx + 1}</div>
+                      <div className="suggestionContent">
+                        <div className="suggestionHeader">
+                          <strong>{suggestion.crop}</strong>
+                          <span className="growthTag">
+                            <Clock size={10} /> {suggestion.growthDays}天
+                          </span>
+                          <span className="familyTag">{suggestion.family}</span>
+                        </div>
+                        <p className="suggestionReason">{suggestion.reason}</p>
+                        <div className="suggestionActions">
+                          {onCreatePlant && (
+                            <button
+                              className="actionBtn primary small"
+                              onClick={() => onCreatePlant(bed, suggestion, rotationInfo.availableDate)}
+                            >
+                              <Plus size={12} /> 转种植计划
+                            </button>
+                          )}
+                          {onCreateTask && (
+                            <button
+                              className="actionBtn secondary small"
+                              onClick={() => onCreateTask(bed, { ...suggestion, action: 'sow' }, rotationInfo.availableDate)}
+                            >
+                              <ListTodo size={12} /> 转待办
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -3544,3 +3544,628 @@ textarea { width: 100%; border: 1px solid #cdd8c3; border-radius: 8px; padding: 
   }
 }
 
+.cropRotationPanel {
+  padding: 0;
+}
+
+.rotationHero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px;
+  background: linear-gradient(135deg, #2f613a, #6c8b42);
+  border-radius: 8px;
+  color: #fff;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.rotationHero h2 {
+  margin: 0 0 6px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 22px;
+}
+
+.rotationHero p {
+  margin: 0;
+  opacity: 0.85;
+  font-size: 14px;
+}
+
+.rotationSeasonBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.periodSelector {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.periodBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 12px;
+  background: #fff;
+  border: 2px solid #dfe7d7;
+  border-radius: 10px;
+  color: #55624e;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.periodBtn:hover {
+  background: #f8faf5;
+  border-color: #b8d8a8;
+}
+
+.periodBtn.active {
+  background: linear-gradient(135deg, #e8f5e3, #d5edcc);
+  border-color: #3d7a2c;
+  color: #2f613a;
+  box-shadow: 0 2px 8px rgba(61, 122, 44, 0.15);
+}
+
+.periodBtn strong {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.periodBtn span {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.rotationStatsCards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.rotationStatCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #dfe7d7;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(44, 61, 34, 0.05);
+}
+
+.rotationStatCard .statIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: #eef5e9;
+  color: #3d7a2c;
+}
+
+.rotationStatCard.idle .statIcon { background: #e8f5e3; color: #3d7a2c; }
+.rotationStatCard.soon .statIcon { background: #fef0d0; color: #8a6a2c; }
+.rotationStatCard.growing .statIcon { background: #e3f0fb; color: #2c5f8a; }
+.rotationStatCard.paused .statIcon { background: #f5ecd8; color: #8a6a2c; }
+
+.rotationStatCard .statNumber {
+  font-size: 24px;
+  font-weight: 700;
+  color: #243222;
+  line-height: 1.2;
+}
+
+.rotationStatCard .statLabel {
+  font-size: 12px;
+  color: #71806a;
+}
+
+.zoneStatsRow {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.zoneStatChip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #fff;
+  border: 2px solid #dfe7d7;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 13px;
+}
+
+.zoneStatChip:hover {
+  background: #f8faf5;
+}
+
+.zoneStatChip.active {
+  background: #f0f7ec;
+  box-shadow: 0 2px 8px rgba(61, 122, 44, 0.15);
+}
+
+.zoneDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.zoneStatInfo {
+  color: #71806a;
+  font-size: 12px;
+}
+
+.rotationFilters {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #dfe7d7;
+  border-radius: 8px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.filterGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #55624e;
+}
+
+.resultCount {
+  font-size: 13px;
+  color: #71806a;
+}
+
+.resultCount strong {
+  color: #2f613a;
+  font-size: 15px;
+}
+
+.clearBtn.small {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.rotationBedList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rotationBedCard {
+  background: #fff;
+  border: 1px solid #dfe7d7;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.rotationBedCard:hover {
+  box-shadow: 0 4px 12px rgba(44, 61, 34, 0.08);
+}
+
+.rotationBedCard.expanded {
+  box-shadow: 0 4px 16px rgba(44, 61, 34, 0.1);
+}
+
+.rotationBedHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.rotationBedHeader:hover {
+  background: #f8faf5;
+}
+
+.bedInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.bedNameRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.bedNameRow h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #243222;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.bedMeta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #71806a;
+}
+
+.bedZone,
+.bedAvailable {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.currentCrop {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #5f7648;
+}
+
+.expandIcon {
+  color: #71806a;
+  flex-shrink: 0;
+}
+
+.rotationBedBody {
+  padding: 0 16px 16px;
+  border-top: 1px solid #eef2eb;
+}
+
+.historySection,
+.suggestionsSection {
+  margin-top: 14px;
+}
+
+.sectionLabel {
+  display: block;
+  font-size: 12px;
+  color: #71806a;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.historyChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.historyChip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 12px;
+  background: #f8faf5;
+  border: 1px solid #dfe7d7;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #3c4d38;
+  font-weight: 500;
+}
+
+.historyDate {
+  font-size: 10px;
+  color: #87917f;
+  font-weight: normal;
+}
+
+.suggestionList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.suggestionItem {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: #f8faf5;
+  border: 1px solid #eef2eb;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.suggestionItem:hover {
+  background: #f0f7ec;
+  border-color: #d5edcc;
+}
+
+.suggestionRank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e8f5e3;
+  color: #3d7a2c;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.suggestionContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.suggestionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.suggestionHeader strong {
+  font-size: 14px;
+  color: #243222;
+}
+
+.growthTag,
+.familyTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.growthTag {
+  background: #e3f0fb;
+  color: #2c5f8a;
+}
+
+.familyTag {
+  background: #f5ecd8;
+  color: #8a6a2c;
+}
+
+.suggestionReason {
+  margin: 0 0 10px 0;
+  font-size: 12px;
+  color: #55624e;
+  line-height: 1.5;
+}
+
+.suggestionActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+
+.actionBtn.primary {
+  background: #2f613a;
+  color: #fff;
+}
+
+.actionBtn.primary:hover {
+  background: #244e2d;
+}
+
+.actionBtn.secondary {
+  background: #fff;
+  color: #2c5f8a;
+  border-color: #bcd8ef;
+}
+
+.actionBtn.secondary:hover {
+  background: #e8f0fa;
+}
+
+.actionBtn.small {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+.quickActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed #dfe7d7;
+}
+
+.sectionHeaderWithBadge {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.rotationStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.rotationSuggestionList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rotationSuggestionItem {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  background: #f8faf5;
+  border: 1px solid #eef2eb;
+  border-radius: 8px;
+}
+
+.rotationSuggestionItem .suggestionRank {
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+}
+
+.confirmModal {
+  max-width: 420px;
+}
+
+.confirmInfo {
+  padding: 16px 0;
+}
+
+.confirmInfo p {
+  margin: 8px 0;
+  font-size: 14px;
+  color: #3c4d38;
+}
+
+.confirmInfo strong {
+  color: #243222;
+  font-weight: 600;
+}
+
+.confirmActions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid #eef2eb;
+}
+
+.cancelBtn {
+  padding: 10px 20px;
+  background: #fff;
+  border: 1px solid #cdd8c3;
+  color: #55624e;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.cancelBtn:hover {
+  background: #f8faf5;
+}
+
+.confirmBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: #2f613a;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.confirmBtn:hover {
+  background: #244e2d;
+}
+
+.rotationSection {
+  background: #f8faf5;
+  border: 1px solid #dfe7d7;
+  border-radius: 10px;
+  padding: 14px !important;
+}
+
+@media (max-width: 900px) {
+  .rotationStatsCards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .periodSelector {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .zoneStatsRow {
+    justify-content: center;
+  }
+
+  .rotationFilters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filterGroup {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 600px) {
+  .rotationStatsCards {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .periodBtn strong {
+    font-size: 16px;
+  }
+
+  .periodBtn {
+    padding: 12px 8px;
+  }
+
+  .rotationHero {
+    padding: 16px;
+  }
+
+  .rotationHero h2 {
+    font-size: 18px;
+  }
+}
+
