@@ -42,6 +42,13 @@ import {
   findRelatedPickupNotice
 } from './utils/distribution';
 import { getOverdueReviewTasks, syncAllInspections } from './utils/statusSync';
+import {
+  checkAllScheduleConflicts,
+  getWeeklyVolunteerStats,
+  getWeeklyScheduleStats,
+  getAllScheduleWarnings,
+  SHORT_INTERVAL_MINUTES
+} from './utils/scheduleUtils';
 
 
 const today = new Date();
@@ -89,6 +96,8 @@ function App() {
   const [consistencyIssues, setConsistencyIssues] = useState([]);
   const [isCheckingConsistency, setIsCheckingConsistency] = useState(false);
   const [lastConsistencyCheck, setLastConsistencyCheck] = useState(null);
+  const [scheduleFormConflicts, setScheduleFormConflicts] = useState([]);
+  const [showScheduleConflictWarning, setShowScheduleConflictWarning] = useState(false);
 
   const weekWater = beds.filter((bed) => {
     const days = (new Date(bed.nextWater) - today) / 86400000;
@@ -264,9 +273,27 @@ function App() {
   const addSchedule = (event) => {
     event.preventDefault();
     if (!scheduleForm.volunteer.trim() || !scheduleForm.date) return;
+    
+    const conflicts = checkAllScheduleConflicts(scheduleForm, schedules);
+    const errors = conflicts.filter(c => c.severity === 'error');
+    
+    if (errors.length > 0) {
+      setScheduleFormConflicts(conflicts);
+      setShowScheduleConflictWarning(true);
+      return;
+    }
+    
+    if (conflicts.length > 0 && !showScheduleConflictWarning) {
+      setScheduleFormConflicts(conflicts);
+      setShowScheduleConflictWarning(true);
+      return;
+    }
+    
     const weekday = getWeekday(scheduleForm.date);
     setSchedules([{ id: crypto.randomUUID(), ...scheduleForm, weekday }, ...schedules]);
     setScheduleForm({ date: iso(0), weekday: '', volunteer: '', phone: '', duty: '浇水', time: '09:00-11:00', note: '' });
+    setScheduleFormConflicts([]);
+    setShowScheduleConflictWarning(false);
   };
 
   const deleteSchedule = (id) => {
@@ -313,6 +340,23 @@ function App() {
     }, {});
     return { total: thisWeek.length, byDuty };
   }, [schedules]);
+
+  const weeklyVolunteerStats = useMemo(() => 
+    getWeeklyVolunteerStats(schedules), 
+    [schedules]
+  );
+
+  const scheduleWarnings = useMemo(() => 
+    getAllScheduleWarnings(schedules), 
+    [schedules]
+  );
+
+  const checkScheduleFormConflicts = useMemo(() => {
+    if (!scheduleForm.volunteer.trim() || !scheduleForm.date || !scheduleForm.time) {
+      return [];
+    }
+    return checkAllScheduleConflicts(scheduleForm, schedules);
+  }, [scheduleForm, schedules]);
 
   const calculateGrowthStage = (sowDate, harvestDate) => {
     const sow = new Date(sowDate);
@@ -1517,7 +1561,7 @@ function App() {
               {(() => {
                 const harvestWarnings = getAllWarnings(harvests);
                 const overdueReviews = getOverdueReviewTasks(tasks, inspections);
-                const totalWarnings = warnings.length + harvestWarnings.length + overdueReviews.length;
+                const totalWarnings = warnings.length + harvestWarnings.length + overdueReviews.length + scheduleWarnings.length;
                 return totalWarnings === 0
                   ? <p className="muted">暂无异常</p>
                   : <>
@@ -1533,6 +1577,18 @@ function App() {
                         <p className="row alert reviewOverdueWarning" key={w.id}>
                           <AlertCircle size={16} />
                           {w.label}
+                          <span>{w.message}</span>
+                        </p>
+                      ))}
+                      {scheduleWarnings.map((w) => (
+                        <p 
+                          className={`row alert ${w.severity === 'error' ? 'critical' : w.type === 'high_load' ? 'harvestWarning' : 'pickupPendingWarning'}`} 
+                          key={w.id}
+                          onClick={() => setActiveTab('schedules')}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          {w.severity === 'error' ? <AlertCircle size={16} /> : w.type === 'high_load' ? <AlertTriangle size={16} /> : <Info size={16} />}
+                          📅 排班{w.type === 'overlap' ? '冲突' : w.type === 'high_load' ? '高负载' : '提醒'}
                           <span>{w.message}</span>
                         </p>
                       ))}
@@ -1995,7 +2051,49 @@ function App() {
               <h2>巡检安排</h2>
               <p className="statNumber">{scheduleStats.byDuty['巡检'] || 0}<span>人次</span></p>
             </article>
+            <article>
+              <h2>参与志愿者</h2>
+              <p className="statNumber">{weeklyVolunteerStats.length}<span>人</span></p>
+            </article>
           </section>
+
+          {weeklyVolunteerStats.length > 0 && (
+            <section className="inventoryWarning" style={{ background: '#f0f7eb', borderColor: '#c0d8b0' }}>
+              <h2 style={{ color: '#2f613a' }}><Users size={18} />本周志愿者任务统计</h2>
+              <div className="warningCards">
+                {weeklyVolunteerStats.map((stat) => {
+                  const isHighLoad = stat.total >= 4;
+                  const dutyLabels = Object.entries(stat.byDuty)
+                    .map(([duty, count]) => `${duty}×${count}`)
+                    .join('、');
+                  return (
+                    <div key={stat.volunteer} className="warningCard" style={{ 
+                      background: isHighLoad ? '#fef8e8' : '#f5faf0', 
+                      borderColor: isHighLoad ? '#f0d6a0' : '#d8e8c8' 
+                    }}>
+                      <div className="warningInfo">
+                        <strong style={{ color: isHighLoad ? '#8a6a2c' : '#3c4d38' }}>{stat.volunteer}</strong>
+                        <span style={{ fontSize: '12px', color: '#71806a' }}>{stat.phone}</span>
+                      </div>
+                      <div className="warningStock">
+                        <span className={`warningCurrent ${isHighLoad ? 'invAlert' : ''}`} style={{ color: isHighLoad ? '#8a6a2c' : '#2f613a' }}>
+                          {stat.total}<small style={{ fontSize: '13px', fontWeight: 'normal' }}>次</small>
+                        </span>
+                        <span className="warningThreshold" style={{ fontSize: '11px', color: '#8a7a4e' }}>
+                          {dutyLabels}
+                        </span>
+                        {isHighLoad && (
+                          <span style={{ fontSize: '11px', color: '#8a5a2c', marginTop: '2px' }}>
+                            <AlertTriangle size={10} /> 负载较高
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           <section className="workspace">
             <form onSubmit={addSchedule} className="panel">
@@ -2020,7 +2118,67 @@ function App() {
                 <option>17:00-19:00</option>
               </select>
               <input placeholder="工作备注" value={scheduleForm.note} onChange={(e) => setScheduleForm({ ...scheduleForm, note: e.target.value })} />
-              <button>保存排班</button>
+              
+              {checkScheduleFormConflicts.length > 0 && (
+                <div className="scheduleConflictPreview" style={{
+                  background: '#fef8e8',
+                  border: '1px solid #f0d6a0',
+                  borderRadius: '8px',
+                  padding: '10px',
+                  marginBottom: '10px'
+                }}>
+                  <p style={{ margin: '0 0 6px', fontSize: '13px', fontWeight: '600', color: '#8a6a2c' }}>
+                    <AlertTriangle size={14} style={{ marginRight: '4px', verticalAlign: '-2px' }} />
+                    实时冲突检测
+                  </p>
+                  {checkScheduleFormConflicts.map((c, idx) => (
+                    <p key={idx} className={`row alert ${c.severity === 'error' ? 'critical' : 'harvestWarning'}`} style={{ margin: '4px 0', fontSize: '12px' }}>
+                      {c.severity === 'error' ? <AlertCircle size={12} /> : <Info size={12} />}
+                      {c.message}
+                    </p>
+                  ))}
+                </div>
+              )}
+              
+              {showScheduleConflictWarning && scheduleFormConflicts.length > 0 && (
+                <div className="scheduleConflictWarning" style={{
+                  background: scheduleFormConflicts.some(c => c.severity === 'error') ? '#fdece4' : '#fef8e8',
+                  border: `1px solid ${scheduleFormConflicts.some(c => c.severity === 'error') ? '#e8b0a0' : '#f0d6a0'}`,
+                  borderRadius: '8px',
+                  padding: '12px',
+                  marginBottom: '10px'
+                }}>
+                  <p style={{ margin: '0 0 8px', fontWeight: '600', color: scheduleFormConflicts.some(c => c.severity === 'error') ? '#8b3f23' : '#8a6a2c' }}>
+                    {scheduleFormConflicts.some(c => c.severity === 'error') 
+                      ? <><AlertCircle size={16} style={{ marginRight: '4px', verticalAlign: '-2px' }} />存在严重冲突，无法保存</>
+                      : <><AlertTriangle size={16} style={{ marginRight: '4px', verticalAlign: '-2px' }} />存在潜在冲突</>
+                    }
+                  </p>
+                  {scheduleFormConflicts.map((c, idx) => (
+                    <p key={idx} className={`row alert ${c.severity === 'error' ? 'critical' : 'harvestWarning'}`} style={{ margin: '4px 0', fontSize: '13px' }}>
+                      {c.severity === 'error' ? <AlertCircle size={14} /> : <Info size={14} />}
+                      {c.message}
+                    </p>
+                  ))}
+                  {!scheduleFormConflicts.some(c => c.severity === 'error') && (
+                    <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
+                      <button type="submit" className="miniBtn" style={{ background: '#e8f0e8', color: '#2f613a', borderColor: '#a0d0a0' }}>
+                        <CheckCircle2 size={12} />仍要保存
+                      </button>
+                      <button type="button" className="miniBtn" onClick={() => {
+                        setShowScheduleConflictWarning(false);
+                        setScheduleFormConflicts([]);
+                      }}>
+                        取消
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {(!showScheduleConflictWarning || scheduleFormConflicts.length === 0) && (
+                <button>保存排班</button>
+              )}
             </form>
 
             <div className="panel wide">
