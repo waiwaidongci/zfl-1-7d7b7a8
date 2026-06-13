@@ -9,7 +9,7 @@ const iso = (offset = 0) => {
 
 export const CROP_ROTATION_KNOWLEDGE = {
   '薄荷': {
-    zones: ['A', 'B'],
+    zones: ['A', 'B', 'C'],
     growthDays: 45,
     family: '唇形科',
     rotationRest: 15,
@@ -29,7 +29,7 @@ export const CROP_ROTATION_KNOWLEDGE = {
     sun: 'full'
   },
   '樱桃番茄': {
-    zones: ['A', 'B'],
+    zones: ['A', 'B', 'C'],
     growthDays: 75,
     family: '茄科',
     rotationRest: 30,
@@ -89,7 +89,7 @@ export const CROP_ROTATION_KNOWLEDGE = {
     sun: 'partial'
   },
   '空心菜': {
-    zones: ['A', 'B'],
+    zones: ['A', 'B', 'C'],
     growthDays: 35,
     family: '旋花科',
     rotationRest: 15,
@@ -119,7 +119,7 @@ export const CROP_ROTATION_KNOWLEDGE = {
     sun: 'partial'
   },
   '韭菜': {
-    zones: ['A', 'B'],
+    zones: ['A', 'B', 'C'],
     growthDays: 60,
     family: '百合科',
     rotationRest: 30,
@@ -129,7 +129,7 @@ export const CROP_ROTATION_KNOWLEDGE = {
     sun: 'full'
   },
   '小葱': {
-    zones: ['A', 'B'],
+    zones: ['A', 'B', 'C'],
     growthDays: 45,
     family: '百合科',
     rotationRest: 25,
@@ -139,7 +139,7 @@ export const CROP_ROTATION_KNOWLEDGE = {
     sun: 'full'
   },
   '苋菜': {
-    zones: ['A', 'B'],
+    zones: ['A', 'B', 'C'],
     growthDays: 30,
     family: '苋科',
     rotationRest: 15,
@@ -149,7 +149,7 @@ export const CROP_ROTATION_KNOWLEDGE = {
     sun: 'full'
   },
   '木耳菜': {
-    zones: ['A', 'B'],
+    zones: ['A', 'B', 'C'],
     growthDays: 35,
     family: '落葵科',
     rotationRest: 15,
@@ -199,7 +199,7 @@ export const CROP_ROTATION_KNOWLEDGE = {
     sun: 'full'
   },
   '草莓': {
-    zones: ['A', 'B'],
+    zones: ['A', 'B', 'C'],
     growthDays: 90,
     family: '蔷薇科',
     rotationRest: 60,
@@ -345,11 +345,12 @@ export const generateCropSuggestions = (bedInfo, historyCrops, count = 3) => {
   const addedCrops = new Set();
 
   zonePriority.forEach(cropName => {
-    if (!CROP_ROTATION_KNOWLEDGE[cropName]) return;
+    const crop = CROP_ROTATION_KNOWLEDGE[cropName];
+    if (!crop) return;
     if (!seasonCrops.includes(cropName)) return;
+    if (!crop.zones || !crop.zones.includes(zoneId)) return;
     if (addedCrops.has(cropName)) return;
 
-    const crop = CROP_ROTATION_KNOWLEDGE[cropName];
     const score = calculateCropScore(cropName, crop, zonePriority, lastFamily, currentCrop, status);
 
     suggestions.push({
@@ -364,15 +365,11 @@ export const generateCropSuggestions = (bedInfo, historyCrops, count = 3) => {
   });
 
   if (suggestions.length < count) {
-    const zoneSun = ZONE_SUN_LEVEL[zoneId] || 'partial';
     seasonCrops.forEach(cropName => {
       if (addedCrops.has(cropName)) return;
       const crop = CROP_ROTATION_KNOWLEDGE[cropName];
       if (!crop) return;
-
-      const sunMatch = (zoneSun === 'full' && crop.sun === 'full') ||
-                       (zoneSun === 'partial' && (crop.sun === 'partial' || crop.sun === 'full'));
-      if (!sunMatch) return;
+      if (!crop.zones || !crop.zones.includes(zoneId)) return;
 
       const score = calculateCropScore(cropName, crop, zonePriority, lastFamily, currentCrop, status) - 10;
 
@@ -390,12 +387,6 @@ export const generateCropSuggestions = (bedInfo, historyCrops, count = 3) => {
 
   suggestions.sort((a, b) => b.score - a.score);
   return suggestions.slice(0, count);
-};
-
-const ZONE_SUN_LEVEL = {
-  'A': 'full',
-  'B': 'partial',
-  'C': 'partial'
 };
 
 const calculateCropScore = (cropName, crop, zonePriority, lastFamily, currentCrop, status) => {
@@ -517,7 +508,7 @@ export const ROTATION_STATUS_LABELS = {
   'idle': { label: '空闲可种', color: '#3d7a2c', bg: '#e8f5e3' },
   'growing': { label: '生长中', color: '#2c5f8a', bg: '#e3f0fb' },
   'soon_harvest': { label: '即将采收', color: '#8a5a2c', bg: '#fbe3c4' },
-  'harvest_ready': { label: '待采收', color: '#8a2c2c', bg: '#fbe3e3' },
+  'harvest_ready': { label: '已到采收期', color: '#8a2c2c', bg: '#fbe3e3' },
   'paused': { label: '暂停维护', color: '#8a6a2c', bg: '#f5ecd8' }
 };
 
@@ -581,6 +572,7 @@ export const getRotationStats = (beds, plants, bedPlacement) => {
     soonHarvest: 0,
     harvestReady: 0,
     paused: 0,
+    soonHarvestTotal: 0,
     byZone: {}
   };
 
@@ -592,19 +584,23 @@ export const getRotationStats = (beds, plants, bedPlacement) => {
       growing: 0,
       soonHarvest: 0,
       harvestReady: 0,
-      paused: 0
+      paused: 0,
+      soonHarvestTotal: 0
     };
   });
 
   beds.forEach(bed => {
     const bedInfo = getBedStatusForRotation(bed, plants, bedPlacement);
     const zoneId = bedInfo.zoneId;
+    const isSoonOrReady = bedInfo.status === 'soon_harvest' || bedInfo.status === 'harvest_ready';
 
     stats[bedInfo.status === 'harvest_ready' ? 'harvestReady' : bedInfo.status]++;
+    if (isSoonOrReady) stats.soonHarvestTotal++;
 
     if (zoneId && stats.byZone[zoneId]) {
       stats.byZone[zoneId].total++;
       stats.byZone[zoneId][bedInfo.status === 'harvest_ready' ? 'harvestReady' : bedInfo.status]++;
+      if (isSoonOrReady) stats.byZone[zoneId].soonHarvestTotal++;
     }
   });
 

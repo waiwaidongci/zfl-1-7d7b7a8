@@ -45,7 +45,11 @@ export function CropRotationPanel({
     }
 
     if (statusFilter) {
-      result = result.filter(b => b.status === statusFilter);
+      if (statusFilter === 'soon_harvest') {
+        result = result.filter(b => b.status === 'soon_harvest' || b.status === 'harvest_ready');
+      } else {
+        result = result.filter(b => b.status === statusFilter);
+      }
     }
 
     return result;
@@ -145,7 +149,7 @@ export function CropRotationPanel({
         <div className="rotationStatCard soon">
           <div className="statIcon"><Clock size={24} /></div>
           <div>
-            <div className="statNumber">{rotationStats.soonHarvest + rotationStats.harvestReady}</div>
+            <div className="statNumber">{rotationStats.soonHarvestTotal}</div>
             <div className="statLabel">即将采收</div>
           </div>
         </div>
@@ -196,8 +200,9 @@ export function CropRotationPanel({
           >
             <option value="">全部状态</option>
             <option value="idle">空闲可种</option>
-            <option value="soon_harvest">即将采收</option>
-            <option value="harvest_ready">待采收</option>
+            <option value="soon_harvest">即将采收（含待采收）</option>
+            <option value="harvest_ready">已到采收期</option>
+            <option value="growing">生长中</option>
             <option value="paused">暂停维护</option>
           </select>
           {(zoneFilter || statusFilter) && (
