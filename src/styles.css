@@ -4169,3 +4169,442 @@ textarea { width: 100%; border: 1px solid #cdd8c3; border-radius: 8px; padding: 
   }
 }
 
+/* ==================== HarvestQueue 采收队列样式 ==================== */
+.harvestQueueContainer {
+  background: #fff;
+  border: 1px solid #dfe7d7;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.queueHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.queueTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.queueTitle h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #2f4a2c;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.queueCountBadge {
+  background: #eef5e9;
+  color: #3d5a38;
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.queueHeaderActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.queueFilters {
+  background: #f8faf5;
+  border: 1px solid #e2ead8;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.filterRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.filterRow label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.filterLabel {
+  font-size: 12px;
+  color: #71806a;
+  font-weight: 500;
+}
+
+.filterRow select,
+.filterRow input[type="date"] {
+  padding: 8px 10px;
+  border: 1px solid #cdd8c3;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+  color: #3c4d38;
+}
+
+.filterRow select:focus,
+.filterRow input[type="date"]:focus {
+  outline: none;
+  border-color: #6fa06a;
+  box-shadow: 0 0 0 2px rgba(111, 160, 106, 0.2);
+}
+
+.quickDateButtons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.queueStatsStrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.queueStatItem {
+  background: #fafcf7;
+  border: 1px solid #e6ecd8;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.queueStatLabel {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.queueStatValue {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.queueStatWeight {
+  font-size: 12px;
+  color: #71806a;
+}
+
+.queueTabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid #e6ecd8;
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+
+.queueTab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #71806a;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.queueTab:hover {
+  color: #2f613a;
+  background: #f5faf0;
+}
+
+.queueTab.active {
+  font-weight: 600;
+}
+
+.queueTabCount {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.queueList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.queueCard {
+  background: #fff;
+  border: 1px solid #dfe7d7;
+  border-radius: 10px;
+  padding: 14px;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.queueCard:hover {
+  box-shadow: 0 4px 12px rgba(44, 95, 44, 0.08);
+  border-color: #c8d8bd;
+}
+
+.queueCard.queue-unassigned {
+  border-left: 4px solid #8a2c2c;
+}
+
+.queueCard.queue-partial {
+  border-left: 4px solid #8a6a2c;
+}
+
+.queueCard.queue-pendingPickup {
+  border-left: 4px solid #2c5f8a;
+}
+
+.queueCard.queue-overduePickup {
+  border-left: 4px solid #8b3f23;
+}
+
+.queueCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.queueCardMain {
+  flex: 1;
+  min-width: 200px;
+}
+
+.queueCardTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.queueCardTitle strong {
+  font-size: 16px;
+  color: #2f4a2c;
+}
+
+.queueCardWeight {
+  font-size: 13px;
+  color: #5a6a54;
+  background: #f2f7eb;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.queueCardBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 12px;
+}
+
+.queueOverdueBadge {
+  font-size: 11px;
+  background: #fdece4;
+  color: #8b3f23;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.queueCardBed {
+  font-size: 13px;
+  color: #71806a;
+  display: inline-block;
+  margin-top: 2px;
+}
+
+.queueCardMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.queueCardDate {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #71806a;
+}
+
+.queueDaysSince {
+  font-size: 11px;
+  color: #8a7a4e;
+  background: #fef8e8;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+.queueCardBody {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.queueProgressSection {
+  background: #fafcf7;
+  border: 1px solid #eaf0e3;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.queueProgressHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #5a6a54;
+  margin-bottom: 8px;
+}
+
+.queueProgressBar {
+  height: 8px;
+  background: #e9efde;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.queueProgressFill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.queueDistributionSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.queueDistTag {
+  font-size: 12px;
+  color: #5a6a54;
+  padding: 3px 8px 3px 10px;
+  background: #f8faf5;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.queuePickupInfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: #f2f7fc;
+  border: 1px solid #d8e4ef;
+  border-radius: 8px;
+}
+
+.queuePickupWeight {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c5f8a;
+}
+
+.queueNoticeInfo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #5a7a9a;
+}
+
+.queueNoticeMissing {
+  color: #8a6a2c !important;
+}
+
+.queueCardNote {
+  margin: 0;
+  font-size: 12px;
+  color: #71806a;
+  padding: 6px 10px;
+  background: #fafcf7;
+  border-radius: 6px;
+}
+
+.queueCardActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 10px;
+  border-top: 1px solid #eef3e7;
+}
+
+.queueActionNotice {
+  background: #e8f0fa !important;
+  color: #2c5f8a !important;
+  border-color: #a0c0e0 !important;
+}
+
+.queueActionConfirm {
+  background: #e8f5e8 !important;
+  color: #2f613a !important;
+  border-color: #a0d0a0 !important;
+}
+
+.queueActionOverdue {
+  background: #fde8dd !important;
+  color: #8b3f23 !important;
+  border-color: #e8b0a0 !important;
+}
+
+.queueActionDistribute {
+  background: #eef5e9 !important;
+  color: #3d5a38 !important;
+  border-color: #c0d8b0 !important;
+}
+
+@media (max-width: 768px) {
+  .queueStatsStrip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .queueCardHeader {
+    flex-direction: column;
+  }
+
+  .queueCardMeta {
+    align-items: flex-start;
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .filterRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .queueStatsStrip {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+

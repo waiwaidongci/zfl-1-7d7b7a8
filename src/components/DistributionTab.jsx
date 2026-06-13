@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Wheat, Search, AlertCircle, CheckCircle2, Clock, Package,
   User, Users, Heart, Trash2, Filter, CalendarDays, Bell, MessageCircle,
@@ -45,6 +45,12 @@ export function DistributionTab({
   const [statusFilter, setStatusFilter] = useState('');
   const [query, setQuery] = useState('');
   const [currentView, setCurrentView] = useState(initialView);
+
+  useEffect(() => {
+    if (initialView) {
+      setCurrentView(initialView);
+    }
+  }, [initialView]);
 
   const stats = useMemo(() => getDistributionStats(harvests), [harvests]);
   const pickupStats = useMemo(() => getPickupStats(harvests), [harvests]);

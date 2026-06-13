@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ListTodo, Filter, CalendarDays, Bell, CheckCircle2,
   Package, AlertCircle, Clock, MessageCircle, ChevronDown, X
@@ -45,6 +45,21 @@ export function HarvestQueue({
   const [startDate, setStartDate] = useState(initialStartDate || '');
   const [endDate, setEndDate] = useState(initialEndDate || '');
   const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    if (initialQueueKey !== undefined && initialQueueKey !== null) {
+      setActiveQueueKey(initialQueueKey);
+    }
+  }, [initialQueueKey]);
+
+  useEffect(() => {
+    if (initialStartDate !== undefined && initialStartDate !== null) {
+      setStartDate(initialStartDate);
+    }
+    if (initialEndDate !== undefined && initialEndDate !== null) {
+      setEndDate(initialEndDate);
+    }
+  }, [initialStartDate, initialEndDate]);
 
   const allQueueStats = useMemo(() => getQueueStats(harvests), [harvests]);
   const weekRange = useMemo(() => getThisWeekRange(), []);

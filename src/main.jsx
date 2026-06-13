@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { CalendarDays, Clock, CheckCircle2, Droplets, Leaf, MessageCircle, Phone, MapPin, Bell, Plus, Search, Trash2, TriangleAlert, Users, Wheat, Sprout, CalendarCheck, Package, AlertCircle, ArrowDownCircle, ArrowUpCircle, Archive, History, User, Heart, Map, Bug, Database, Wrench, AlertTriangle, Info, RefreshCw, TrendingUp, ListTodo } from 'lucide-react';
 import './styles.css';
@@ -356,6 +356,18 @@ function App() {
 
   const dashboardQueueStats = useMemo(() => getQueueStatsForWeek(harvests), [harvests]);
   const dashboardWeekRange = useMemo(() => getThisWeekRange(), []);
+
+  useEffect(() => {
+    if (activeTab === 'distribution' && distInitialView) {
+      const timer = setTimeout(() => {
+        setDistInitialView('list');
+        setDistInitialQueueKey('');
+        setDistInitialStartDate('');
+        setDistInitialEndDate('');
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab, distInitialView]);
 
   const calculateGrowthStage = (sowDate, harvestDate) => {
     const sow = new Date(sowDate);
