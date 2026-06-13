@@ -26,6 +26,8 @@ import {
 import {
   DISTRIBUTION_TYPES,
   PICKUP_CONFIRM_OVERDUE_DAYS,
+  PICKUP_REISSUE_GRACE_DAYS,
+  FULFILLMENT_STATUS,
   parseWeight,
   formatWeight,
   getDistributionTotal,
@@ -43,9 +45,36 @@ import {
   getQueueStats,
   getQueueStatsForWeek,
   getThisWeekRange,
-  getThisWeekHarvests
+  getThisWeekHarvests,
+  recordPartialPickup,
+  generateReissueNoticeContact,
+  canReissuePickupNotice,
+  buildInitialDistribution,
+  addDistributionHistory,
+  getAllPickupNotices,
+  getSelfPickupTakenGrams,
+  getSelfPickupRemainingGrams,
+  getFulfillmentStatus,
+  getFulfillmentSummary,
+  validateDistributionWithPartial,
+  hasCompleteContactInfo,
+  getMissingContactInfo,
+  getQueueStatusWithFulfillment,
+  splitHarvestByDateRange,
+  groupHarvestsByAdopter,
+  groupHarvestsByBed,
+  groupHarvestsByCrop,
+  normalizeHarvestDistribution,
+  isValidWeightFormat
 } from './utils/distribution';
-import { getOverdueReviewTasks, syncAllInspections } from './utils/statusSync';
+import {
+  markHarvestAsArchived,
+  isHarvestArchived,
+  canModifyArchivedHarvest,
+  buildFulfillmentArchiveSummary
+} from './utils/archive';
+import { getOverdueReviewTasks, syncAllInspections, syncTaskCompletionToInspection } from './utils/statusSync';
+import { getAbnormalTypeInfo, getTreatmentResultInfo } from './data/inspectionData';
 import {
   checkAllScheduleConflicts,
   getWeeklyVolunteerStats,
@@ -188,7 +217,87 @@ function App() {
     }
   };
 
-  const toggleTask = (id) => setTasks(tasks.map((task) => task.id === id ? { ...task, done: !task.done } : task));
+  const handlePartialPickup = (harvestId, takenWeightStr) => {
+    setHarvests(harvests.map((h) => {
+      if (h.id !== harvestId) return h;
+      if (!h.distribution) return h;
+      const updatedDistribution = recordPartialPickup(h.distribution, takenWeightStr);
+      return {
+        ...h,
+        distribution: updatedDistribution
+      };
+    }));
+  };
+
+  const handleReissuePickupNotice = (harvestId) => {
+    const harvest = harvests.find(h => h.id === harvestId);
+    if (!harvest) return;
+    if (!canReissuePickupNotice(contacts, harvestId, PICKUP_REISSUE_GRACE_DAYS)) return;
+    const contact = generateReissueNoticeContact(harvest, beds, contacts);
+    if (contact) {
+      setContacts([contact, ...contacts]);
+    }
+  };
+
+  const handleAddHarvestWithDistribution = (newHarvest, distribution) => {
+    const newId = crypto.randomUUID();
+    const harvestWithDist = {
+      id: newId,
+      ...newHarvest,
+      distribution: distribution
+    };
+    setHarvests([harvestWithDist, ...harvests]);
+    return newId;
+  };
+
+  const handleArchiveHarvest = (harvestId) => {
+    setHarvests(harvests.map((h) => {
+      if (h.id !== harvestId) return h;
+      return markHarvestAsArchived(h);
+    }));
+  };
+
+  const handleViewArchivedHarvest = (harvest) => {
+    setDistEditingHarvest(harvest);
+    setActiveTab('distribution');
+  };
+
+  const handleSaveDistributionWithFulfillment = (harvestId, distribution) => {
+    setHarvests(harvests.map((h) =>
+      h.id === harvestId ? {
+        ...h,
+        distribution: distribution ? { ...distribution, distributionUpdatedAt: iso(0) } : null
+      } : h
+    ));
+    setDistEditingHarvest(null);
+  };
+
+  const toggleTask = (id) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+
+    const newDone = !task.done;
+    const updatedTask = { ...task, done: newDone };
+    if (newDone) {
+      updatedTask.doneAt = new Date().toISOString();
+    }
+
+    let newTasks = tasks.map(t => t.id === id ? updatedTask : t);
+    setTasks(newTasks);
+
+    if (newDone && task.relatedInspectionId) {
+      const allTasksRef = newTasks;
+      const syncResult = syncTaskCompletionToInspection(task, inspections, beds, allTasksRef);
+      if (syncResult.updated) {
+        if (syncResult.inspections !== inspections) {
+          setInspections(syncResult.inspections);
+        }
+        if (syncResult.beds !== beds) {
+          setBeds(syncResult.beds);
+        }
+      }
+    }
+  };
   const advanceWater = (id) => setBeds(beds.map((bed) => bed.id === id ? { ...bed, nextWater: iso(3), warning: '' } : bed));
 
   const toggleTaskExpand = (taskId) => {
@@ -1240,6 +1349,84 @@ function App() {
               : `已于${now.slice(5, 16)}确认取菜`
           };
         });
+        break;
+      }
+
+      case 'clear_task_relation': {
+        newTasks = currentTasks.map(t =>
+          t.id === fixData.taskId
+            ? { ...t, relatedInspectionId: undefined, taskType: undefined }
+            : t
+        );
+        break;
+      }
+
+      case 'recreate_missing_task': {
+        const inspection = currentInspections.find(i => i.id === fixData.inspectionId);
+        if (inspection) {
+          let newTask;
+          if (fixData.taskType === 'inspection_followup') {
+            const treatment = getTreatmentResultInfo(inspection.treatmentResult);
+            const abnormal = getAbnormalTypeInfo(inspection.abnormalType);
+            if (treatment.createsTask) {
+              const today = new Date();
+              let offsetDays = 3;
+              if (abnormal.severity === 'danger') offsetDays = 1;
+              if (abnormal.severity === 'warning') offsetDays = 2;
+              if (abnormal.severity === 'info') offsetDays = 5;
+              const dueDate = new Date(today);
+              dueDate.setDate(dueDate.getDate() + offsetDays);
+              newTask = {
+                id: crypto.randomUUID(),
+                title: `${inspection.bedName} - ${abnormal.label}${treatment.key === 'escalated' ? '（上报）' : '跟进'}`,
+                owner: treatment.key === 'escalated' ? '园艺管家' : '值班志愿者',
+                due: dueDate.toISOString().slice(0, 10),
+                done: false,
+                relatedInspectionId: inspection.id,
+                taskType: 'inspection_followup',
+                createdAt: new Date().toISOString()
+              };
+            }
+          } else if (fixData.taskType === 'review_plan') {
+            const treatment = getTreatmentResultInfo(inspection.treatmentResult);
+            if (treatment.needsFollowupPlan && inspection.followupDate) {
+              const abnormal = getAbnormalTypeInfo(inspection.abnormalType);
+              newTask = {
+                id: crypto.randomUUID(),
+                title: `${inspection.bedName} - ${abnormal.label}复查`,
+                owner: inspection.followupOwner || '值班志愿者',
+                due: inspection.followupDate,
+                done: false,
+                relatedInspectionId: inspection.id,
+                taskType: 'review_plan',
+                createdAt: new Date().toISOString()
+              };
+            }
+          }
+          if (newTask) {
+            newTasks = [...currentTasks, newTask];
+          }
+        }
+        break;
+      }
+
+      case 'mark_review_task_done': {
+        const now = new Date().toISOString();
+        newTasks = currentTasks.map(t =>
+          t.id === fixData.taskId ? { ...t, done: true, doneAt: now } : t
+        );
+        if (fixData.inspectionId) {
+          newInspections = currentInspections.map(i =>
+            i.id === fixData.inspectionId ? { ...i, reviewCompletedAt: now } : i
+          );
+        }
+        break;
+      }
+
+      case 'update_inspection_to_resolved': {
+        newInspections = currentInspections.map(i =>
+          i.id === fixData.inspectionId ? { ...i, syncStatus: 'synced', retryCount: 0 } : i
+        );
         break;
       }
 
@@ -2779,6 +2966,37 @@ function App() {
           initialStartDate={distInitialStartDate}
           initialEndDate={distInitialEndDate}
           queueRequestId={distQueueRequestId}
+          onPartialPickup={handlePartialPickup}
+          onReissuePickupNotice={handleReissuePickupNotice}
+          onAddHarvestWithDistribution={handleAddHarvestWithDistribution}
+          onArchiveHarvest={handleArchiveHarvest}
+          onSaveDistribution={handleSaveDistributionWithFulfillment}
+          distEditingHarvest={distEditingHarvest}
+          setDistEditingHarvest={setDistEditingHarvest}
+          isHarvestArchived={isHarvestArchived}
+          canModifyArchivedHarvest={canModifyArchivedHarvest}
+          buildInitialDistribution={buildInitialDistribution}
+          recordPartialPickup={recordPartialPickup}
+          generateReissueNoticeContact={generateReissueNoticeContact}
+          canReissuePickupNotice={canReissuePickupNotice}
+          addDistributionHistory={addDistributionHistory}
+          getAllPickupNotices={getAllPickupNotices}
+          getSelfPickupTakenGrams={getSelfPickupTakenGrams}
+          getSelfPickupRemainingGrams={getSelfPickupRemainingGrams}
+          getFulfillmentStatus={getFulfillmentStatus}
+          getFulfillmentSummary={getFulfillmentSummary}
+          validateDistributionWithPartial={validateDistributionWithPartial}
+          hasCompleteContactInfo={hasCompleteContactInfo}
+          getMissingContactInfo={getMissingContactInfo}
+          getQueueStatusWithFulfillment={getQueueStatusWithFulfillment}
+          splitHarvestByDateRange={splitHarvestByDateRange}
+          groupHarvestsByAdopter={groupHarvestsByAdopter}
+          groupHarvestsByBed={groupHarvestsByBed}
+          groupHarvestsByCrop={groupHarvestsByCrop}
+          normalizeHarvestDistribution={normalizeHarvestDistribution}
+          isValidWeightFormat={isValidWeightFormat}
+          PICKUP_REISSUE_GRACE_DAYS={PICKUP_REISSUE_GRACE_DAYS}
+          FULFILLMENT_STATUS={FULFILLMENT_STATUS}
         />
       )}
 
@@ -2841,6 +3059,7 @@ function App() {
               setInspections(merged.inspections);
               setBedPlacement(merged.bedPlacement);
             }}
+            onViewArchivedHarvest={handleViewArchivedHarvest}
           />
         </section>
       )}

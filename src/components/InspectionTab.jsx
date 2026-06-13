@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Bug, Search, Plus, Save, FileText, Clock, CheckCircle2,
   AlertTriangle, RefreshCw, Trash2, Image as ImageIcon,
-  Trash, X, Calendar, User, ArrowUpCircle, Package
+  Trash, X, Calendar, User, ArrowUpCircle, Package,
+  ListTodo, CalendarCheck, Link2Off, CheckCircle, XCircle, Loader2
 } from 'lucide-react';
 import {
   ABNORMAL_TYPES, TREATMENT_RESULTS,
@@ -16,7 +17,7 @@ import {
   getInspectionSyncStats, generateTaskFromInspection,
   generateWarningFromInspection, generateReviewTaskFromInspection,
   getFollowupStatus, TASK_TYPE_INSPECTION, TASK_TYPE_REVIEW,
-  findTaskByInspectionAndType
+  findTaskByInspectionAndType, getClosedLoopStatus, CLOSED_LOOP_STATUS
 } from '../utils/statusSync';
 
 const DRAFT_KEY = 'zfl-1-inspection-draft';
@@ -748,6 +749,12 @@ export function InspectionTab({
                 const abnormal = getAbnormalTypeInfo(inspection.abnormalType);
                 const treatment = getTreatmentResultInfo(inspection.treatmentResult);
                 const followupStatus = getFollowupStatus(inspection, tasks);
+                const closedLoop = getClosedLoopStatus(inspection, tasks, transactions);
+                const followupTask = findTaskByInspectionAndType(tasks, inspection.id, TASK_TYPE_INSPECTION);
+                const reviewTask = findTaskByInspectionAndType(tasks, inspection.id, TASK_TYPE_REVIEW);
+                const relatedTransactions = transactions.filter(
+                  t => t.relatedType === 'inspection' && t.relatedId === inspection.id
+                );
                 return (
                   <div
                     key={inspection.id}
@@ -802,6 +809,62 @@ export function InspectionTab({
                           )}
                         </div>
                       )}
+                      <div className="closedLoopSection">
+                        <div className="closedLoopHeader">
+                          <div className="closedLoopStatus" data-status={closedLoop.status}>
+                            {closedLoop.status === CLOSED_LOOP_STATUS.COMPLETE && <CheckCircle size={14} />}
+                            {closedLoop.status === CLOSED_LOOP_STATUS.INCOMPLETE && <AlertTriangle size={14} />}
+                            {closedLoop.status === CLOSED_LOOP_STATUS.BROKEN && <Link2Off size={14} />}
+                            {closedLoop.status === CLOSED_LOOP_STATUS.PENDING && <Loader2 size={14} />}
+                            <span>
+                              {closedLoop.status === CLOSED_LOOP_STATUS.COMPLETE ? '闭环完整' :
+                               closedLoop.status === CLOSED_LOOP_STATUS.INCOMPLETE ? '闭环待处理' :
+                               closedLoop.status === CLOSED_LOOP_STATUS.BROKEN ? '闭环断裂' :
+                               '闭环进行中'}
+                            </span>
+                          </div>
+                          {closedLoop.issues.length > 0 && (
+                            <span className="closedLoopIssueCount">{closedLoop.issues.length} 项待处理</span>
+                          )}
+                        </div>
+                        {closedLoop.issues.length > 0 && (
+                          <div className="closedLoopIssues">
+                            {closedLoop.issues.map((issue, idx) => (
+                              <div key={idx} className="closedLoopIssueItem">
+                                <AlertTriangle size={12} />
+                                <span>{issue}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="closedLoopLinks">
+                          {followupTask && (
+                            <div className="closedLoopLink">
+                              <ListTodo size={12} />
+                              <span>跟进任务</span>
+                              <strong style={{ marginLeft: '4px' }}>{followupTask.done ? '已完成' : '进行中'}</strong>
+                            </div>
+                          )}
+                          {reviewTask && (
+                            <div className="closedLoopLink">
+                              <CalendarCheck size={12} />
+                              <span>复查计划</span>
+                              <strong style={{ marginLeft: '4px' }}>
+                                {reviewTask.done ? '已复查' :
+                                 closedLoop.details.reviewOverdue ? `已逾期 (${reviewTask.due})` :
+                                 `待复查 (${reviewTask.due})`}
+                              </strong>
+                            </div>
+                          )}
+                          {relatedTransactions.length > 0 && (
+                            <div className="closedLoopLink">
+                              <Package size={12} />
+                              <span>物资消耗</span>
+                              <strong style={{ marginLeft: '4px' }}>{relatedTransactions.length} 条流水</strong>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                       {inspection.photos && inspection.photos.length > 0 && (
                         <div className="photoPlaceholderGrid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginTop: '8px' }}>
                           {inspection.photos.slice(0, 4).map(photo => (

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Wheat, Search, AlertCircle, CheckCircle2, Clock, Package,
   User, Users, Heart, Trash2, Filter, CalendarDays, Bell, MessageCircle,
-  ListTodo, LayoutList
+  ListTodo, LayoutList, Scissors, Truck, RefreshCw, AlertTriangle
 } from 'lucide-react';
 import { DistributionModal } from './DistributionModal';
 import { HarvestQueue } from './HarvestQueue';
@@ -10,8 +10,11 @@ import {
   DISTRIBUTION_TYPES,
   DISTRIBUTION_OVERDUE_DAYS,
   PICKUP_CONFIRM_OVERDUE_DAYS,
+  PICKUP_REISSUE_GRACE_DAYS,
+  FULFILLMENT_STATUS,
   parseWeight,
   formatWeight,
+  isValidWeightFormat,
   getDistributionTotal,
   getDistributionStatus,
   getDistributionStats,
@@ -23,8 +26,25 @@ import {
   confirmPickupContact,
   checkPickupNoticeExists,
   findRelatedPickupNotice,
+  getAllPickupNotices,
+  canReissuePickupNotice,
+  generateReissueNoticeContact,
   getQueueStats,
-  getThisWeekRange
+  getThisWeekRange,
+  buildInitialDistribution,
+  getFulfillmentStatus,
+  getFulfillmentSummary,
+  recordPartialPickup,
+  addDistributionHistory,
+  validateDistributionWithPartial,
+  hasCompleteContactInfo,
+  getMissingContactInfo,
+  getSelfPickupTakenGrams,
+  getSelfPickupRemainingGrams,
+  splitHarvestByDateRange,
+  groupHarvestsByAdopter,
+  groupHarvestsByBed,
+  groupHarvestsByCrop
 } from '../utils/distribution';
 import { iso } from '../data/seedData';
 
@@ -46,6 +66,9 @@ export function DistributionTab({
   const [statusFilter, setStatusFilter] = useState('');
   const [query, setQuery] = useState('');
   const [currentView, setCurrentView] = useState(initialView);
+  const [showAdvancedSplit, setShowAdvancedSplit] = useState(false);
+  const [splitMethod, setSplitMethod] = useState('simple');
+  const [partialPickupWeight, setPartialPickupWeight] = useState('');
 
   useEffect(() => {
     if (queueRequestId > 0 && initialView) {
@@ -56,6 +79,7 @@ export function DistributionTab({
   const stats = useMemo(() => getDistributionStats(harvests), [harvests]);
   const pickupStats = useMemo(() => getPickupStats(harvests), [harvests]);
   const pickupWarnings = useMemo(() => getPickupWarnings(harvests), [harvests]);
+  const fulfillmentSummary = useMemo(() => getFulfillmentSummary(harvests), [harvests]);
 
   const generatePickupNotice = (harvestId) => {
     const harvest = harvests.find(h => h.id === harvestId);
@@ -63,6 +87,16 @@ export function DistributionTab({
     if (checkPickupNoticeExists(contacts, harvestId)) return;
     const contact = generatePickupNoticeContact(harvest, beds);
     if (contact) {
+      setContacts([contact, ...contacts]);
+    }
+  };
+
+  const reissuePickupNotice = (harvestId) => {
+    const harvest = harvests.find(h => h.id === harvestId);
+    if (!harvest) return;
+    if (!canReissuePickupNotice(contacts, harvestId, PICKUP_REISSUE_GRACE_DAYS)) return;
+    const contact = generateReissueNoticeContact(harvest, beds, contacts);
+    if (contact && !contact.error) {
       setContacts([contact, ...contacts]);
     }
   };
@@ -81,6 +115,46 @@ export function DistributionTab({
     }));
     if (checkPickupNoticeExists(contacts, harvestId)) {
       setContacts(confirmPickupContact(contacts, harvestId));
+    }
+  };
+
+  const handlePartialPickup = (harvestId, takenWeightStr) => {
+    if (!isValidWeightFormat(takenWeightStr)) return;
+    setHarvests(harvests.map((h) => {
+      if (h.id !== harvestId || !h.distribution) return h;
+      const updatedDist = recordPartialPickup(h.distribution, takenWeightStr);
+      const distWithHistory = addDistributionHistory(updatedDist, 'partial_pickup', {
+        takenWeight: takenWeightStr,
+        timestamp: iso(0)
+      });
+      return {
+        ...h,
+        distribution: distWithHistory
+      };
+    }));
+    setPartialPickupWeight('');
+  };
+
+  const applyQuickSplit = (harvestId, splitType) => {
+    const harvest = harvests.find(h => h.id === harvestId);
+    if (!harvest) return;
+    const distribution = buildInitialDistribution(harvest, beds, {
+      defaultSelfPickupRatio: splitType === 'all_self' ? 1 : splitType === 'half_community' ? 0.5 : 0.7
+    });
+    if (distribution.error) return;
+    saveDistribution(harvestId, distribution);
+  };
+
+  const addHarvestWithDistribution = (e) => {
+    e.preventDefault();
+    const harvest = addHarvest(e, true);
+    if (harvest && showAdvancedSplit) {
+      const distribution = buildInitialDistribution(harvest, beds, {});
+      if (!distribution.error) {
+        setHarvests(prev => prev.map(h =>
+          h.id === harvest.id ? { ...h, distribution } : h
+        ));
+      }
     }
   };
 
@@ -172,10 +246,22 @@ export function DistributionTab({
           </p>
         </article>
         <article>
-          <h2>部分分配</h2>
-          <p className="statNumber" style={{ color: stats.partial > 0 ? '#8a6a2c' : '#2f613a' }}>
-            {stats.partial}<span>批</span>
+          <h2>履约中</h2>
+          <p className="statNumber" style={{ color: fulfillmentSummary.pending > 0 ? '#2c5f8a' : '#2f613a' }}>
+            {fulfillmentSummary.pending}<span>批</span>
           </p>
+          {fulfillmentSummary.pendingWeight > 0 && (
+            <p className="statSub">{formatWeight(fulfillmentSummary.pendingWeight)}</p>
+          )}
+        </article>
+        <article>
+          <h2>部分取走</h2>
+          <p className="statNumber" style={{ color: fulfillmentSummary.partial > 0 ? '#8a6a2c' : '#2f613a' }}>
+            {fulfillmentSummary.partial}<span>批</span>
+          </p>
+          {fulfillmentSummary.partialWeight > 0 && (
+            <p className="statSub">{formatWeight(fulfillmentSummary.partialWeight)}</p>
+          )}
         </article>
         <article>
           <h2>待取菜</h2>
@@ -196,17 +282,13 @@ export function DistributionTab({
           )}
         </article>
         <article>
-          <h2>已取菜</h2>
-          <p className="statNumber">
-            {pickupStats.confirmed}<span>批</span>
+          <h2>履约完成</h2>
+          <p className="statNumber" style={{ color: '#2f613a' }}>
+            {fulfillmentSummary.completed}<span>批</span>
           </p>
-          {pickupStats.confirmedWeight > 0 && (
-            <p className="statSub">{formatWeight(pickupStats.confirmedWeight)}</p>
+          {fulfillmentSummary.completedWeight > 0 && (
+            <p className="statSub">{formatWeight(fulfillmentSummary.completedWeight)}</p>
           )}
-        </article>
-        <article>
-          <h2>分配完成</h2>
-          <p className="statNumber">{stats.completed}<span>批</span></p>
         </article>
       </section>
 
@@ -337,7 +419,7 @@ export function DistributionTab({
       )}
 
       <section className="workspace">
-        <form onSubmit={addHarvest} className="panel">
+        <form onSubmit={addHarvestWithDistribution} className="panel">
           <h2><Wheat size={18} />新增采摘记录</h2>
           <select value={harvestForm.bed} onChange={(e) => {
             const bedName = e.target.value;
@@ -354,12 +436,75 @@ export function DistributionTab({
           <input placeholder="重量（如 1.4kg 或 300g）" value={harvestForm.weight} onChange={(e) => setHarvestForm({ ...harvestForm, weight: e.target.value })} />
           <input type="date" value={harvestForm.date} onChange={(e) => setHarvestForm({ ...harvestForm, date: e.target.value })} />
           <input placeholder="备注" value={harvestForm.note} onChange={(e) => setHarvestForm({ ...harvestForm, note: e.target.value })} />
+
+          <div className="formSection" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e9e0' }}>
+            <label className="checkboxLabel" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <input
+                type="checkbox"
+                checked={showAdvancedSplit}
+                onChange={(e) => setShowAdvancedSplit(e.target.checked)}
+              />
+              <span><Scissors size={14} /> 登记时自动拆分去向</span>
+            </label>
+
+            {showAdvancedSplit && (
+              <div className="advancedSplitOptions" style={{ padding: '12px', background: '#f7faf4', borderRadius: '8px', border: '1px solid #dce5d5' }}>
+                <div style={{ marginBottom: '8px', fontWeight: '500', fontSize: '13px', color: '#55624e' }}>
+                  拆分方式
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className={`miniBtn ${splitMethod === 'simple' ? 'active' : ''}`}
+                    style={{
+                      background: splitMethod === 'simple' ? '#2f613a' : '#fff',
+                      color: splitMethod === 'simple' ? '#fff' : '#55624e',
+                      borderColor: splitMethod === 'simple' ? '#2f613a' : '#cdd8c3'
+                    }}
+                    onClick={() => setSplitMethod('simple')}
+                  >
+                    智能分配
+                  </button>
+                  <button
+                    type="button"
+                    className={`miniBtn ${splitMethod === 'all_self' ? 'active' : ''}`}
+                    style={{
+                      background: splitMethod === 'all_self' ? '#2c5f8a' : '#fff',
+                      color: splitMethod === 'all_self' ? '#fff' : '#55624e',
+                      borderColor: splitMethod === 'all_self' ? '#2c5f8a' : '#cdd8c3'
+                    }}
+                    onClick={() => setSplitMethod('all_self')}
+                  >
+                    全部认养
+                  </button>
+                  <button
+                    type="button"
+                    className={`miniBtn ${splitMethod === 'half_community' ? 'active' : ''}`}
+                    style={{
+                      background: splitMethod === 'half_community' ? '#8a6a2c' : '#fff',
+                      color: splitMethod === 'half_community' ? '#fff' : '#55624e',
+                      borderColor: splitMethod === 'half_community' ? '#8a6a2c' : '#cdd8c3'
+                    }}
+                    onClick={() => setSplitMethod('half_community')}
+                  >
+                    半份分享
+                  </button>
+                </div>
+                <div style={{ marginTop: '8px', fontSize: '12px', color: '#71806a' }}>
+                  {splitMethod === 'simple' && '按菜畦类型和历史分配模式智能拆分'}
+                  {splitMethod === 'all_self' && '全部归入认养人自取'}
+                  {splitMethod === 'half_community' && '50%认养自取，50%社区分享'}
+                </div>
+              </div>
+            )}
+          </div>
+
           {renderConsumptionSuggestions && materials && (
             <div style={{ margin: '8px 0' }}>
               {renderConsumptionSuggestions({ type: 'harvest' }, harvestConsumptions, setHarvestConsumptions)}
             </div>
           )}
-          <button>保存采摘</button>
+          <button>保存采摘{showAdvancedSplit ? '并拆分' : ''}</button>
         </form>
 
         <div className="panel wide">
@@ -398,24 +543,60 @@ export function DistributionTab({
               {filteredHarvests.map((harvest) => {
                 const status = getDistributionStatus(harvest);
                 const pickup = getPickupStatus(harvest);
+                const fulfillment = getFulfillmentStatus(harvest);
                 const distributed = getDistributionTotal(harvest.distribution);
                 const total = parseWeight(harvest.weight);
                 const remaining = getDistributionRemaining(harvest);
                 const progress = total > 0 ? Math.min(100, (distributed / total) * 100) : 0;
                 const daysSince = Math.floor((new Date() - new Date(harvest.date)) / 86400000);
+                const selfPickupTotal = parseWeight(harvest.distribution?.selfPickup) || 0;
+                const selfPickupTaken = getSelfPickupTakenGrams(harvest.distribution);
+                const selfPickupRemaining = getSelfPickupRemainingGrams(harvest.distribution);
+                const notices = getAllPickupNotices(contacts, harvest.id);
+                const canReissue = canReissuePickupNotice(contacts, harvest.id, PICKUP_REISSUE_GRACE_DAYS);
+                const hasContactInfo = hasCompleteContactInfo(harvest, beds);
+                const missingContact = getMissingContactInfo(harvest, beds);
 
                 return (
-                  <article key={harvest.id} className="harvestCard">
+                  <article key={harvest.id} className={`harvestCard ${harvest.archived ? 'archived' : ''}`}>
                     <div className="harvestHeader">
                       <div className="harvestInfo">
                         <strong>{harvest.crop} · {harvest.weight}</strong>
                         <span className="harvestBed">{harvest.bed}</span>
+                        {harvest.archived && (
+                          <span className="archiveBadge" style={{
+                            display: 'inline-block',
+                            padding: '2px 6px',
+                            background: '#e8e8e8',
+                            color: '#666',
+                            fontSize: '11px',
+                            borderRadius: '4px',
+                            marginLeft: '8px'
+                          }}>
+                            已归档
+                          </span>
+                        )}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <span className={`distributionStatusTag ${status.key} ${status.isOverdue ? 'overdue' : ''}`}>
                           {status.isOverdue && <AlertCircle size={12} />}
                           {status.label}
                           {status.isOverdue && `（超${daysSince - DISTRIBUTION_OVERDUE_DAYS}天）`}
+                        </span>
+                        <span className={`fulfillmentStatusTag ${fulfillment.key}`} style={{
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          background: fulfillment.key === FULFILLMENT_STATUS.COMPLETED ? '#e8f5e8' :
+                                     fulfillment.key === FULFILLMENT_STATUS.PARTIAL ? '#fef5e8' :
+                                     fulfillment.key === FULFILLMENT_STATUS.ARCHIVED ? '#e8e8e8' : '#e8f0fa',
+                          color: fulfillment.key === FULFILLMENT_STATUS.COMPLETED ? '#2f613a' :
+                                 fulfillment.key === FULFILLMENT_STATUS.PARTIAL ? '#8a6a2c' :
+                                 fulfillment.key === FULFILLMENT_STATUS.ARCHIVED ? '#666' : '#2c5f8a'
+                        }}>
+                          <Truck size={12} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+                          {fulfillment.label}
                         </span>
                         {pickup.key !== 'none' && (
                           <span className={`pickupStatusTag ${pickup.key} ${pickup.isOverdue ? 'overdue' : ''}`}>
@@ -448,6 +629,39 @@ export function DistributionTab({
                         </div>
                       </div>
 
+                      {selfPickupTotal > 0 && (
+                        <div className="pickupProgressWrap" style={{
+                          marginTop: '8px',
+                          padding: '8px 12px',
+                          background: '#f2f7fc',
+                          borderRadius: '6px',
+                          border: '1px solid #d0e0f0'
+                        }}>
+                          <div style={{ fontSize: '12px', color: '#5a7a9a', marginBottom: '4px' }}>
+                            <User size={12} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+                            自取进度：已取 <strong style={{ color: '#2c5f8a' }}>{formatWeight(selfPickupTaken)}</strong>
+                            <span style={{ color: '#87917f' }}> / {formatWeight(selfPickupTotal)}</span>
+                            {selfPickupRemaining > 0 && (
+                              <span style={{ marginLeft: '8px', color: '#8a6a2c' }}>
+                                待取 {formatWeight(selfPickupRemaining)}
+                              </span>
+                            )}
+                          </div>
+                          {notices.length > 0 && (
+                            <div style={{ fontSize: '11px', color: '#6a8aaa', marginTop: '4px' }}>
+                              <Bell size={10} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+                              已发送 {notices.length} 次通知，最近：{notices[0].date}
+                            </div>
+                          )}
+                          {!hasContactInfo && missingContact.length > 0 && (
+                            <div style={{ fontSize: '11px', color: '#b04a2a', marginTop: '4px' }}>
+                              <AlertTriangle size={10} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+                              缺少联系人信息：{missingContact.join('、')}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {harvest.distribution && (
                         <div className="distributionMiniSummary">
                           {DISTRIBUTION_TYPES.map((t) => {
@@ -463,13 +677,61 @@ export function DistributionTab({
                         </div>
                       )}
 
+                      {fulfillment.key === FULFILLMENT_STATUS.PARTIAL && !harvest.archived && (
+                        <div className="partialPickupSection" style={{
+                          marginTop: '12px',
+                          padding: '12px',
+                          background: '#fefbf0',
+                          borderRadius: '8px',
+                          border: '1px solid #f0e0c0'
+                        }}>
+                          <div style={{ fontSize: '13px', fontWeight: '500', color: '#8a6a2c', marginBottom: '8px' }}>
+                            <Scissors size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+                            登记部分取走
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <input
+                              type="text"
+                              placeholder="本次取走重量（如 500g 或 0.5kg）"
+                              value={partialPickupWeight}
+                              onChange={(e) => setPartialPickupWeight(e.target.value)}
+                              style={{
+                                flex: '1',
+                                minWidth: '200px',
+                                padding: '6px 10px',
+                                border: '1px solid #d0c0a0',
+                                borderRadius: '4px',
+                                fontSize: '13px'
+                              }}
+                            />
+                            <button
+                              type="button"
+                              className="miniBtn"
+                              style={{ background: '#8a6a2c', color: '#fff', borderColor: '#8a6a2c' }}
+                              onClick={() => handlePartialPickup(harvest.id, partialPickupWeight)}
+                              disabled={!isValidWeightFormat(partialPickupWeight) || harvest.archived}
+                            >
+                              登记本次取走
+                            </button>
+                            <button
+                              type="button"
+                              className="miniBtn"
+                              onClick={() => setPartialPickupWeight(formatWeight(selfPickupRemaining))}
+                              disabled={harvest.archived}
+                            >
+                              全部取走
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       {harvest.note && <p className="harvestNote">📝 {harvest.note}</p>}
                     </div>
 
                     <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap' }}>
-                      {pickup.key === 'pending' && (
+                      {pickup.key === 'pending' && !harvest.archived && (
                         <>
-                          {!checkPickupNoticeExists(contacts, harvest.id) && (
+                          {!checkPickupNoticeExists(contacts, harvest.id) && hasContactInfo && (
                             <button
                               type="button"
                               className="miniBtn pickupNoticeBtn"
@@ -480,14 +742,32 @@ export function DistributionTab({
                               发送取菜通知
                             </button>
                           )}
-                          <button
-                            type="button"
-                            className={`miniBtn ${pickup.isOverdue ? 'pickupOverdueBtn' : 'pickupPendingBtn'}`}
-                            onClick={() => confirmPickup(harvest.id)}
-                          >
-                            <CheckCircle2 size={12} />
-                            {pickup.isOverdue ? '标记已取' : '确认取菜'}
-                          </button>
+                          {checkPickupNoticeExists(contacts, harvest.id) && canReissue && hasContactInfo && (
+                            <button
+                              type="button"
+                              className="miniBtn"
+                              onClick={() => reissuePickupNotice(harvest.id)}
+                              style={{ background: '#fef5e8', color: '#8a6a2c', borderColor: '#e0c080' }}
+                            >
+                              <RefreshCw size={12} />
+                              补发通知
+                            </button>
+                          )}
+                          {checkPickupNoticeExists(contacts, harvest.id) && !canReissue && (
+                            <span className="muted" style={{ fontSize: '12px', color: '#8a7a6a' }}>
+                              {PICKUP_REISSUE_GRACE_DAYS}天内请勿重复通知
+                            </span>
+                          )}
+                          {selfPickupRemaining > 0 && (
+                            <button
+                              type="button"
+                              className={`miniBtn ${pickup.isOverdue ? 'pickupOverdueBtn' : 'pickupPendingBtn'}`}
+                              onClick={() => confirmPickup(harvest.id)}
+                            >
+                              <CheckCircle2 size={12} />
+                              {pickup.isOverdue ? '标记全部已取' : '确认全部取走'}
+                            </button>
+                          )}
                         </>
                       )}
                       {pickup.key === 'confirmed' && (
@@ -496,10 +776,32 @@ export function DistributionTab({
                           {pickup.confirmedAt?.slice(5) || ''} 已取
                         </span>
                       )}
-                      <button type="button" className="miniBtn distributionBtn" onClick={() => openDistribution(harvest)}>
-                        <Package size={12} />
-                        {harvest.distribution ? '编辑分配' : '登记分配'}
-                      </button>
+                      {!harvest.archived && (
+                        <button type="button" className="miniBtn distributionBtn" onClick={() => openDistribution(harvest)}>
+                          <Package size={12} />
+                          {harvest.distribution ? '编辑分配' : '登记分配'}
+                        </button>
+                      )}
+                      {!harvest.distribution && !harvest.archived && (
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            type="button"
+                            className="miniBtn"
+                            onClick={() => applyQuickSplit(harvest.id, 'all_self')}
+                            style={{ fontSize: '11px', padding: '4px 8px' }}
+                          >
+                            快速：全部认养
+                          </button>
+                          <button
+                            type="button"
+                            className="miniBtn"
+                            onClick={() => applyQuickSplit(harvest.id, 'half_community')}
+                            style={{ fontSize: '11px', padding: '4px 8px' }}
+                          >
+                            快速：半份分享
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </article>
                 );

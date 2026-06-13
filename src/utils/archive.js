@@ -1,4 +1,8 @@
-import { parseWeight, isValidWeightFormat, DISTRIBUTION_TYPES } from './distribution';
+import {
+  parseWeight, isValidWeightFormat, DISTRIBUTION_TYPES, formatWeight,
+  getFulfillmentStatus, getFulfillmentSummary, getSelfPickupTakenGrams,
+  getSelfPickupRemainingGrams, getAllPickupNotices, FULFILLMENT_STATUS
+} from './distribution';
 
 const ARCHIVE_VERSION = '1.0.0';
 const ARCHIVE_SCHEMA = 'zfl-garden-archive';
@@ -33,6 +37,66 @@ const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArr
 const deepEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const isNonEmptyString = (v) => typeof v === 'string' && v.trim().length > 0;
 
+export const buildFulfillmentArchiveSummary = (harvests, contacts) => {
+  const fulfillmentSummary = getFulfillmentSummary(harvests);
+  const harvestArchiveDetails = harvests.map((h) => {
+    const fulfillment = getFulfillmentStatus(h);
+    const takenGrams = getSelfPickupTakenGrams(h.distribution);
+    const remainingGrams = getSelfPickupRemainingGrams(h.distribution);
+    const notices = getAllPickupNotices(contacts, h.id);
+    const selfPickupGrams = h.distribution?.selfPickup ? parseWeight(h.distribution.selfPickup) : 0;
+    return {
+      id: h.id,
+      crop: h.crop,
+      bed: h.bed,
+      date: h.date,
+      weight: h.weight,
+      totalGrams: parseWeight(h.weight),
+      fulfillmentStatus: fulfillment.key,
+      fulfillmentLabel: fulfillment.label,
+      distribution: h.distribution || null,
+      selfPickupTotalGrams: selfPickupGrams,
+      selfPickupTakenGrams: takenGrams,
+      selfPickupRemainingGrams: remainingGrams,
+      noticeCount: notices.length,
+      notices: notices.map((n) => ({ date: n.date, time: n.time, type: n.type })),
+      history: h.distribution?.history || [],
+      archived: h.archived || false,
+      archivedAt: h.archivedAt || null
+    };
+  });
+  return {
+    summary: fulfillmentSummary,
+    harvestDetails: harvestArchiveDetails,
+    archivedAt: new Date().toISOString()
+  };
+};
+
+export const markHarvestAsArchived = (harvest, archivedAt = null) => {
+  return {
+    ...harvest,
+    archived: true,
+    archivedAt: archivedAt || new Date().toISOString(),
+    fulfillmentStatus: FULFILLMENT_STATUS.ARCHIVED
+  };
+};
+
+export const isHarvestArchived = (harvest) => {
+  return harvest?.archived === true;
+};
+
+export const canModifyArchivedHarvest = (harvest) => {
+  return !isHarvestArchived(harvest);
+};
+
+export const getArchivedHarvests = (harvests) => {
+  return harvests.filter((h) => isHarvestArchived(h));
+};
+
+export const getActiveHarvests = (harvests) => {
+  return harvests.filter((h) => !isHarvestArchived(h));
+};
+
 export function buildArchive(currentState) {
   const timestamp = new Date().toISOString();
   const stats = {};
@@ -47,11 +111,17 @@ export function buildArchive(currentState) {
     }
   });
 
+  const fulfillmentSummary = buildFulfillmentArchiveSummary(
+    currentState.harvests || [],
+    currentState.contacts || []
+  );
+
   return {
     schema: ARCHIVE_SCHEMA,
     version: ARCHIVE_VERSION,
     exportedAt: timestamp,
     stats,
+    fulfillmentSummary,
     data: {
       beds: currentState.beds ? [...currentState.beds] : [],
       harvests: currentState.harvests ? [...currentState.harvests] : [],
@@ -375,7 +445,11 @@ export function computeDiff(localState, archiveData) {
 }
 
 function findConflictFields(a, b) {
-  const HIGH_SENSITIVITY_FIELDS = ['status', 'done', 'treatmentResult', 'syncStatus', 'pickupStatus', 'growthStage', 'adopter', 'owner'];
+  const HIGH_SENSITIVITY_FIELDS = [
+    'status', 'done', 'treatmentResult', 'syncStatus', 'pickupStatus',
+    'growthStage', 'adopter', 'owner', 'archived', 'archivedAt',
+    'fulfillmentStatus', 'distribution'
+  ];
   const conflicts = [];
   const allKeys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
   allKeys.forEach((k) => {

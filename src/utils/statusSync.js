@@ -3,6 +3,236 @@ import { getAbnormalTypeInfo, getTreatmentResultInfo, ABNORMAL_TYPES } from '../
 export const TASK_TYPE_INSPECTION = 'inspection_followup';
 export const TASK_TYPE_REVIEW = 'review_plan';
 
+export const CLOSED_LOOP_STATUS = {
+  COMPLETE: 'complete',
+  INCOMPLETE: 'incomplete',
+  BROKEN: 'broken',
+  PENDING: 'pending'
+};
+
+export const getClosedLoopStatus = (inspection, tasks, transactions) => {
+  const status = {
+    status: CLOSED_LOOP_STATUS.PENDING,
+    issues: [],
+    details: {
+      hasFollowupTask: false,
+      followupTaskDone: false,
+      hasReviewTask: false,
+      reviewTaskDone: false,
+      hasTransactions: false,
+      reviewOverdue: false,
+      isSynced: inspection.syncStatus === 'synced'
+    }
+  };
+
+  const treatment = getTreatmentResultInfo(inspection.treatmentResult);
+  const abnormal = getAbnormalTypeInfo(inspection.abnormalType);
+
+  if (treatment.createsTask) {
+    const followupTask = findTaskByInspectionAndType(tasks, inspection.id, TASK_TYPE_INSPECTION);
+    if (followupTask) {
+      status.details.hasFollowupTask = true;
+      status.details.followupTaskDone = followupTask.done;
+    } else {
+      status.issues.push(`缺少${abnormal.label}跟进任务`);
+    }
+  }
+
+  if (treatment.needsFollowupPlan && inspection.followupDate) {
+    const reviewTask = findTaskByInspectionAndType(tasks, inspection.id, TASK_TYPE_REVIEW);
+    if (reviewTask) {
+      status.details.hasReviewTask = true;
+      status.details.reviewTaskDone = reviewTask.done;
+      const today = new Date().toISOString().slice(0, 10);
+      if (!reviewTask.done && inspection.followupDate < today) {
+        status.details.reviewOverdue = true;
+        const days = Math.floor((new Date(today) - new Date(inspection.followupDate)) / 86400000);
+        status.issues.push(`复查任务已逾期${days}天`);
+      }
+    } else {
+      status.issues.push(`缺少复查任务（计划于${inspection.followupDate}）`);
+    }
+  }
+
+  const relatedTx = transactions.filter(
+    t => t.relatedType === 'inspection' && t.relatedId === inspection.id
+  );
+  status.details.hasTransactions = relatedTx.length > 0;
+
+  if (!status.details.isSynced) {
+    status.issues.push('巡检状态待同步');
+  }
+
+  if (status.issues.length === 0) {
+    if (treatment.clearsWarning) {
+      status.status = CLOSED_LOOP_STATUS.COMPLETE;
+    } else if (status.details.hasFollowupTask && status.details.hasReviewTask) {
+      if (status.details.followupTaskDone && status.details.reviewTaskDone) {
+        status.status = CLOSED_LOOP_STATUS.COMPLETE;
+      } else if (!status.details.followupTaskDone || !status.details.reviewTaskDone) {
+        status.status = CLOSED_LOOP_STATUS.PENDING;
+      }
+    } else if (status.details.hasFollowupTask && !treatment.needsFollowupPlan) {
+      status.status = status.details.followupTaskDone ? CLOSED_LOOP_STATUS.COMPLETE : CLOSED_LOOP_STATUS.PENDING;
+    } else {
+      status.status = CLOSED_LOOP_STATUS.COMPLETE;
+    }
+  } else {
+    const hasBrokenIssue = status.issues.some(i => i.includes('缺少'));
+    status.status = hasBrokenIssue ? CLOSED_LOOP_STATUS.BROKEN : CLOSED_LOOP_STATUS.INCOMPLETE;
+  }
+
+  return status;
+};
+
+export const syncTaskCompletionToInspection = (task, inspections, beds, allTasks) => {
+  if (!task.relatedInspectionId) {
+    return { inspections, beds, updated: false };
+  }
+
+  const inspection = inspections.find(i => i.id === task.relatedInspectionId);
+  if (!inspection) {
+    return { inspections, beds, updated: false };
+  }
+
+  let updatedInspections = [...inspections];
+  let updatedBeds = [...beds];
+  let updated = false;
+
+  if (task.taskType === TASK_TYPE_REVIEW) {
+    const idx = updatedInspections.findIndex(i => i.id === inspection.id);
+    if (idx !== -1 && !updatedInspections[idx].reviewCompletedAt) {
+      updatedInspections[idx] = {
+        ...updatedInspections[idx],
+        reviewCompletedAt: new Date().toISOString()
+      };
+      updated = true;
+    }
+  }
+
+  const treatment = getTreatmentResultInfo(inspection.treatmentResult);
+  if (!treatment.clearsWarning) {
+    const relatedTasks = allTasks.filter(t =>
+      t.relatedInspectionId === inspection.id && t.taskType === TASK_TYPE_INSPECTION
+    );
+    const allRelatedDone = relatedTasks.length > 0 && relatedTasks.every(t => t.done);
+    const reviewTask = findTaskByInspectionAndType(allTasks, inspection.id, TASK_TYPE_REVIEW);
+    const reviewDone = !treatment.needsFollowupPlan || (reviewTask && reviewTask.done);
+
+    if (allRelatedDone && reviewDone) {
+      const bedIdx = updatedBeds.findIndex(b => b.name === inspection.bedName);
+      if (bedIdx !== -1 && updatedBeds[bedIdx].warning) {
+        updatedBeds[bedIdx] = { ...updatedBeds[bedIdx], warning: '' };
+        updated = true;
+      }
+    }
+  }
+
+  return { inspections: updatedInspections, beds: updatedBeds, updated };
+};
+
+export const findBrokenLinks = (inspections, tasks, transactions) => {
+  const issues = [];
+  const inspectionIds = new Set(inspections.map(i => i.id));
+
+  for (const task of tasks) {
+    if (!task.relatedInspectionId) continue;
+    if (!inspectionIds.has(task.relatedInspectionId)) {
+      issues.push({
+        id: `broken-task-${task.id}`,
+        type: 'broken_link_task',
+        severity: 'warning',
+        category: 'closed_loop',
+        title: '任务关联巡检不存在',
+        description: `任务"${task.title}"关联的巡检记录已被删除，但任务仍保留关联信息`,
+        affectedItems: [
+          { type: 'task', id: task.id, name: task.title }
+        ],
+        fixType: 'clear_task_relation',
+        fixData: { taskId: task.id }
+      });
+    }
+  }
+
+  for (const inspection of inspections) {
+    const treatment = getTreatmentResultInfo(inspection.treatmentResult);
+
+    if (treatment.createsTask) {
+      const task = findTaskByInspectionAndType(tasks, inspection.id, TASK_TYPE_INSPECTION);
+      if (!task) {
+        const abnormal = getAbnormalTypeInfo(inspection.abnormalType);
+        issues.push({
+          id: `broken-inspection-task-${inspection.id}`,
+          type: 'broken_link_inspection',
+          severity: 'warning',
+          category: 'closed_loop',
+          title: `${inspection.bedName} 巡检缺少跟进任务`,
+          description: `巡检"${abnormal.label}"处理结果为"${treatment.label}"，应生成跟进任务但任务不存在`,
+          affectedItems: [
+            { type: 'inspection', id: inspection.id, name: `${inspection.bedName}-${abnormal.label}` }
+          ],
+          fixType: 'recreate_missing_task',
+          fixData: { inspectionId: inspection.id, taskType: TASK_TYPE_INSPECTION }
+        });
+      }
+    }
+
+    if (treatment.needsFollowupPlan && inspection.followupDate) {
+      const reviewTask = findTaskByInspectionAndType(tasks, inspection.id, TASK_TYPE_REVIEW);
+      if (!reviewTask) {
+        const abnormal = getAbnormalTypeInfo(inspection.abnormalType);
+        issues.push({
+          id: `broken-inspection-review-${inspection.id}`,
+          type: 'missing_review_task',
+          severity: 'warning',
+          category: 'closed_loop',
+          title: `${inspection.bedName} 巡检缺少复查任务`,
+          description: `巡检"${abnormal.label}"计划于 ${inspection.followupDate} 复查，应生成复查任务但任务不存在`,
+          affectedItems: [
+            { type: 'inspection', id: inspection.id, name: `${inspection.bedName}-${abnormal.label}` }
+          ],
+          fixType: 'recreate_missing_task',
+          fixData: { inspectionId: inspection.id, taskType: TASK_TYPE_REVIEW }
+        });
+      }
+    }
+  }
+
+  const transactionRelatedTypes = ['task', 'harvest', 'plant', 'inspection', 'bed'];
+  const validIds = {
+    task: new Set(tasks.map(t => t.id)),
+    harvest: new Set(),
+    plant: new Set(),
+    inspection: inspectionIds,
+    bed: new Set()
+  };
+
+  for (const tx of transactions) {
+    if (!tx.relatedType || !tx.relatedId) continue;
+    if (!transactionRelatedTypes.includes(tx.relatedType)) continue;
+
+    const ids = validIds[tx.relatedType];
+    if (ids && !ids.has(tx.relatedId)) {
+      const typeLabels = { task: '任务', harvest: '采收记录', plant: '种植计划', inspection: '巡检记录', bed: '菜畦' };
+      issues.push({
+        id: `orphan-transaction-${tx.id}`,
+        type: 'orphan_transaction',
+        severity: 'warning',
+        category: 'inventory_reference',
+        title: `库存流水关联已删除${typeLabels[tx.relatedType]}`,
+        description: `${tx.date} ${tx.materialName} ${tx.type === 'inbound' ? '+' : '-'}${tx.quantity}${tx.unit} 关联的${typeLabels[tx.relatedType]} "${tx.relatedName || '已删除'}" 不存在`,
+        affectedItems: [
+          { type: 'transaction', id: tx.id, name: `${tx.materialName} ${tx.type === 'inbound' ? '入库' : '消耗'}` }
+        ],
+        fixType: 'clear_transaction_relation',
+        fixData: { transactionId: tx.id }
+      });
+    }
+  }
+
+  return issues;
+};
+
 export const generateWarningFromInspection = (inspection) => {
   const abnormal = getAbnormalTypeInfo(inspection.abnormalType);
   const treatment = getTreatmentResultInfo(inspection.treatmentResult);

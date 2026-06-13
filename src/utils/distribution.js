@@ -7,6 +7,13 @@ export const DISTRIBUTION_TYPES = [
 
 export const DISTRIBUTION_OVERDUE_DAYS = 3;
 export const PICKUP_CONFIRM_OVERDUE_DAYS = 2;
+export const PICKUP_REISSUE_GRACE_DAYS = 1;
+export const FULFILLMENT_STATUS = {
+  PENDING: 'pending',
+  PARTIAL: 'partial',
+  COMPLETED: 'completed',
+  ARCHIVED: 'archived'
+};
 
 export const QUEUE_STATUS = [
   { key: 'unassigned', label: '未分配', color: '#8a2c2c', icon: 'alert', priority: 1 },
@@ -447,4 +454,369 @@ export const iso = (offset = 0) => {
   const d = new Date();
   d.setDate(d.getDate() + offset);
   return d.toISOString().slice(0, 10);
+};
+
+export const getSelfPickupTakenGrams = (distribution) => {
+  if (!distribution) return 0;
+  return parseWeight(distribution.selfPickupTaken) || 0;
+};
+
+export const getSelfPickupRemainingGrams = (distribution) => {
+  if (!distribution) return 0;
+  const total = parseWeight(distribution.selfPickup) || 0;
+  const taken = getSelfPickupTakenGrams(distribution);
+  return Math.max(0, total - taken);
+};
+
+export const getFulfillmentStatus = (harvest) => {
+  if (!harvest) return { key: FULFILLMENT_STATUS.PENDING, label: '待处理' };
+  if (harvest.archived) return { key: FULFILLMENT_STATUS.ARCHIVED, label: '已归档', isArchived: true };
+
+  const dist = harvest.distribution;
+  if (!dist) return { key: FULFILLMENT_STATUS.PENDING, label: '待分配' };
+
+  const selfPickupTotal = parseWeight(dist.selfPickup) || 0;
+  const selfPickupTaken = getSelfPickupTakenGrams(dist);
+  const allOtherDistributed = DISTRIBUTION_TYPES
+    .filter(t => t.key !== 'selfPickup')
+    .every(t => parseWeight(dist[t.key]) > 0 || !dist[t.key]);
+
+  if (selfPickupTotal > 0) {
+    if (selfPickupTaken === 0) {
+      return { key: FULFILLMENT_STATUS.PENDING, label: '待自取' };
+    } else if (selfPickupTaken < selfPickupTotal) {
+      return { key: FULFILLMENT_STATUS.PARTIAL, label: '部分自取', taken: selfPickupTaken, remaining: selfPickupTotal - selfPickupTaken };
+    }
+  }
+
+  const totalDistributed = getDistributionTotal(dist);
+  const totalWeight = parseWeight(harvest.weight);
+  if (totalDistributed >= totalWeight || (selfPickupTotal > 0 && selfPickupTaken >= selfPickupTotal && allOtherDistributed)) {
+    return { key: FULFILLMENT_STATUS.COMPLETED, label: '履约完成' };
+  }
+
+  return { key: FULFILLMENT_STATUS.PENDING, label: '处理中' };
+};
+
+export const addDistributionHistory = (distribution, action, details = {}) => {
+  if (!distribution) return distribution;
+  const history = distribution.history || [];
+  const newEntry = {
+    id: crypto.randomUUID(),
+    action,
+    timestamp: new Date().toISOString(),
+    ...details
+  };
+  return {
+    ...distribution,
+    history: [...history, newEntry]
+  };
+};
+
+export const recordPartialPickup = (distribution, takenWeightStr) => {
+  if (!distribution) return null;
+  const takenGrams = parseWeight(takenWeightStr);
+  if (takenGrams <= 0) return null;
+
+  const currentTaken = getSelfPickupTakenGrams(distribution);
+  const totalSelfPickup = parseWeight(distribution.selfPickup) || 0;
+  const remaining = totalSelfPickup - currentTaken;
+
+  if (takenGrams > remaining) {
+    return { error: `本次取走重量(${formatWeight(takenGrams)})超过剩余可取(${formatWeight(remaining)})` };
+  }
+
+  const newTaken = currentTaken + takenGrams;
+  const newTakenStr = newTaken >= 1000
+    ? `${(newTaken / 1000).toFixed(newTaken % 1000 === 0 ? 0 : 1)}kg`
+    : `${Math.round(newTaken)}g`;
+
+  let updated = {
+    ...distribution,
+    selfPickupTaken: newTakenStr
+  };
+
+  if (newTaken >= totalSelfPickup && totalSelfPickup > 0) {
+    updated.selfPickupConfirmedAt = new Date().toISOString().slice(0, 10);
+  }
+
+  updated = addDistributionHistory(updated, 'partial_pickup', {
+    taken: takenWeightStr,
+    takenGrams,
+    remainingAfter: formatWeight(totalSelfPickup - newTaken)
+  });
+
+  return updated;
+};
+
+export const canReissuePickupNotice = (contacts, harvestId, graceDays = PICKUP_REISSUE_GRACE_DAYS) => {
+  const notices = contacts.filter(c =>
+    c.relatedHarvestId === harvestId && c.type === '取菜通知'
+  );
+  if (notices.length === 0) return { canReissue: true };
+
+  const lastNotice = notices.sort((a, b) =>
+    new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time)
+  )[0];
+
+  const daysSinceLast = Math.floor(
+    (new Date() - new Date(lastNotice.date + ' ' + lastNotice.time)) / 86400000
+  );
+
+  if (daysSinceLast < graceDays) {
+    return {
+      canReissue: false,
+      reason: `距上次通知仅${daysSinceLast}天，${graceDays}天后可补发`,
+      daysSinceLast,
+      graceDays
+    };
+  }
+
+  return { canReissue: true, daysSinceLast, noticeCount: notices.length };
+};
+
+export const generateReissueNoticeContact = (harvest, beds, contacts) => {
+  if (!harvest || !harvest.distribution?.selfPickup) return null;
+  const bed = findBedByName(beds, harvest.bed);
+  if (!bed || !bed.adopter) return null;
+
+  const recheck = canReissuePickupNotice(contacts, harvest.id);
+  if (!recheck.canReissue) return { error: recheck.reason };
+
+  const remaining = getSelfPickupRemainingGrams(harvest.distribution);
+  if (remaining <= 0) return { error: '该采收已全部取走，无需补发通知' };
+
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10);
+  const timeStr = now.toTimeString().slice(0, 5);
+  const expectedDate = getExpectedPickupDate(iso(0));
+  const remainingStr = formatWeight(remaining);
+
+  const noticeCount = contacts.filter(c =>
+    c.relatedHarvestId === harvest.id && c.type === '取菜通知'
+  ).length;
+
+  return {
+    id: crypto.randomUUID(),
+    bedId: bed.id,
+    bedName: bed.name,
+    adopter: bed.adopter,
+    phone: bed.phone || '',
+    type: '取菜通知',
+    date: dateStr,
+    time: timeStr,
+    content: `【补发通知${noticeCount + 1}】${harvest.crop}剩余${remainingStr}待取，请于${expectedDate}前来菜园自取。如不便请联系志愿者安排其他时间。`,
+    note: `作物：${harvest.crop}；剩余重量：${remainingStr}；预计取菜日期：${expectedDate}；补发第${noticeCount + 1}次`,
+    relatedHarvestId: harvest.id,
+    pickupNoticeSentAt: now.toISOString(),
+    expectedPickupDate: expectedDate,
+    pickupStatus: 'pending',
+    isReissue: true,
+    reissueCount: noticeCount + 1
+  };
+};
+
+export const getPickupNoticeCount = (contacts, harvestId) => {
+  return contacts.filter(c =>
+    c.relatedHarvestId === harvestId && c.type === '取菜通知'
+  ).length;
+};
+
+export const getAllPickupNotices = (contacts, harvestId) => {
+  return contacts
+    .filter(c => c.relatedHarvestId === harvestId && c.type === '取菜通知')
+    .sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time));
+};
+
+export const getFulfillmentSummary = (harvests) => {
+  const summary = {
+    total: harvests.length,
+    pending: 0,
+    partial: 0,
+    completed: 0,
+    archived: 0,
+    pendingWeight: 0,
+    partialWeight: 0,
+    completedWeight: 0,
+    byType: {
+      selfPickup: 0,
+      communityShare: 0,
+      volunteerSample: 0,
+      loss: 0
+    }
+  };
+
+  for (const h of harvests) {
+    const status = getFulfillmentStatus(h);
+    const weight = parseWeight(h.weight);
+
+    if (status.key === FULFILLMENT_STATUS.ARCHIVED) {
+      summary.archived++;
+    } else if (status.key === FULFILLMENT_STATUS.COMPLETED) {
+      summary.completed++;
+      summary.completedWeight += weight;
+    } else if (status.key === FULFILLMENT_STATUS.PARTIAL) {
+      summary.partial++;
+      summary.partialWeight += weight;
+    } else {
+      summary.pending++;
+      summary.pendingWeight += weight;
+    }
+
+    if (h.distribution) {
+      for (const t of DISTRIBUTION_TYPES) {
+        summary.byType[t.key] += parseWeight(h.distribution[t.key]) || 0;
+      }
+    }
+  }
+
+  return summary;
+};
+
+export const validateDistributionWithPartial = (distribution, harvestWeight) => {
+  const errors = validateDistribution(distribution, harvestWeight);
+
+  if (distribution?.selfPickupTaken) {
+    const taken = parseWeight(distribution.selfPickupTaken);
+    const total = parseWeight(distribution.selfPickup) || 0;
+    if (taken > total) {
+      errors.push(`已取走重量(${formatWeight(taken)})超过自取分配总量(${formatWeight(total)})`);
+    }
+  }
+
+  return errors;
+};
+
+export const getMissingContactInfo = (harvest, beds) => {
+  const bed = findBedByName(beds, harvest.bed);
+  const missing = [];
+  if (!bed) {
+    missing.push('菜畦信息不存在');
+    return missing;
+  }
+  if (!bed.adopter) missing.push('认养人');
+  if (!bed.phone) missing.push('联系电话');
+  return missing;
+};
+
+export const hasCompleteContactInfo = (harvest, beds) => {
+  return getMissingContactInfo(harvest, beds).length === 0;
+};
+
+export const buildInitialDistribution = (harvest, beds, options = {}) => {
+  const bed = findBedByName(beds, harvest.bed);
+  const hasAdopter = bed && bed.adopter;
+  const totalGrams = parseWeight(harvest.weight);
+
+  const distribution = {
+    selfPickup: '',
+    communityShare: '',
+    volunteerSample: '',
+    loss: '',
+    distributionUpdatedAt: iso(0)
+  };
+
+  if (hasAdopter && options.autoAssignSelfPickup && totalGrams > 0) {
+    const defaultSelfPickup = Math.min(totalGrams, 500);
+    distribution.selfPickup = defaultSelfPickup >= 1000
+      ? `${(defaultSelfPickup / 1000).toFixed(1)}kg`
+      : `${defaultSelfPickup}g`;
+  }
+
+  return distribution;
+};
+
+export const getQueueStatusWithFulfillment = (harvest) => {
+  const baseStatus = getQueueStatus(harvest);
+  const fulfillment = getFulfillmentStatus(harvest);
+
+  return {
+    ...baseStatus,
+    fulfillmentKey: fulfillment.key,
+    fulfillmentLabel: fulfillment.label,
+    isArchived: !!harvest.archived,
+    partialTaken: fulfillment.taken || 0,
+    partialRemaining: fulfillment.remaining || 0
+  };
+};
+
+export const normalizeHarvestDistribution = (harvest) => {
+  if (!harvest) return harvest;
+
+  if (harvest.distribution === undefined || harvest.distribution === null) {
+    return { ...harvest, distribution: null };
+  }
+
+  const dist = harvest.distribution;
+  const normalized = {};
+
+  for (const t of DISTRIBUTION_TYPES) {
+    if (dist[t.key] !== undefined && dist[t.key] !== null && dist[t.key] !== '') {
+      if (isValidWeightFormat(dist[t.key])) {
+        normalized[t.key] = dist[t.key];
+      }
+    }
+  }
+
+  if (dist.selfPickupTaken !== undefined && dist.selfPickupTaken !== null) {
+    if (isValidWeightFormat(dist.selfPickupTaken)) {
+      normalized.selfPickupTaken = dist.selfPickupTaken;
+    }
+  }
+
+  if (dist.selfPickupConfirmedAt) {
+    normalized.selfPickupConfirmedAt = dist.selfPickupConfirmedAt;
+  }
+
+  if (dist.distributionUpdatedAt) {
+    normalized.distributionUpdatedAt = dist.distributionUpdatedAt;
+  }
+
+  if (dist.history && Array.isArray(dist.history)) {
+    normalized.history = dist.history;
+  }
+
+  const hasAny = Object.keys(normalized).some(k =>
+    k !== 'distributionUpdatedAt' && k !== 'history' && normalized[k]
+  );
+
+  return {
+    ...harvest,
+    distribution: hasAny ? normalized : null
+  };
+};
+
+export const splitHarvestByDateRange = (harvests, startDate, endDate) => {
+  const inRange = filterHarvestsByRange(harvests, startDate, endDate);
+  const outside = harvests.filter(h => !inRange.includes(h));
+  return { inRange, outside };
+};
+
+export const groupHarvestsByAdopter = (harvests, beds) => {
+  const groups = {};
+  for (const h of harvests) {
+    const bed = findBedByName(beds, h.bed);
+    const adopter = bed?.adopter || '未认养';
+    if (!groups[adopter]) groups[adopter] = [];
+    groups[adopter].push(h);
+  }
+  return groups;
+};
+
+export const groupHarvestsByBed = (harvests) => {
+  const groups = {};
+  for (const h of harvests) {
+    if (!groups[h.bed]) groups[h.bed] = [];
+    groups[h.bed].push(h);
+  }
+  return groups;
+};
+
+export const groupHarvestsByCrop = (harvests) => {
+  const groups = {};
+  for (const h of harvests) {
+    if (!groups[h.crop]) groups[h.crop] = [];
+    groups[h.crop].push(h);
+  }
+  return groups;
 };

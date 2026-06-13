@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import {
   AlertTriangle, AlertCircle, Info, RefreshCw, CheckCircle2,
   Bug, Leaf, Clock, Package, User, Sprout, Database,
-  ChevronDown, ChevronRight, Wrench, X
+  ChevronDown, ChevronRight, Wrench, X, Link2Off, ClipboardCheck, Unlink,
+  Truck, Bell
 } from 'lucide-react';
 import {
   ISSUE_SEVERITY, ISSUE_CATEGORIES, CATEGORY_LABELS,
@@ -28,7 +29,9 @@ const CATEGORY_ICONS = {
   [ISSUE_CATEGORIES.HARVEST_DISTRIBUTION]: Package,
   [ISSUE_CATEGORIES.PICKUP_STATUS]: User,
   [ISSUE_CATEGORIES.PLANT_PLAN]: Sprout,
-  [ISSUE_CATEGORIES.INVENTORY_REFERENCE]: Database
+  [ISSUE_CATEGORIES.INVENTORY_REFERENCE]: Database,
+  [ISSUE_CATEGORIES.CLOSED_LOOP]: ClipboardCheck,
+  [ISSUE_CATEGORIES.FULFILLMENT_CONSISTENCY]: Truck
 };
 
 const AFFECTED_TYPE_LABELS = {
@@ -52,7 +55,17 @@ const FIX_TYPE_LABELS = {
   send_pickup_notice: '发送取菜通知',
   sync_pickup_confirmation: '同步取菜确认状态',
   review_inspection_status: '查看巡检详情',
-  handle_missing_material: '无法自动修复'
+  handle_missing_material: '无法自动修复',
+  repair_closure_chain: '修复闭环链路',
+  create_missing_review_task: '创建复查任务',
+  mark_review_completed: '标记复查完成',
+  repair_inventory_orphan: '修复库存孤儿引用',
+  fix_partial_pickup_over: '修复超量取货',
+  unset_pickup_confirmation: '取消确认状态',
+  add_contact_info: '补充联系人信息',
+  wait_for_grace_period: '等待宽限期',
+  reissue_pickup_notice: '补发取菜通知',
+  restore_archived_record: '恢复归档记录'
 };
 
 export function ConsistencyCheckCenter({
@@ -160,7 +173,10 @@ export function ConsistencyCheckCenter({
   const canAutoFix = (issue) => {
     return ![
       'handle_missing_material',
-      'review_inspection_status'
+      'review_inspection_status',
+      'add_contact_info',
+      'wait_for_grace_period',
+      'restore_archived_record'
     ].includes(issue.fixType);
   };
 
@@ -462,7 +478,17 @@ function getIssueExplanation(issue) {
     send_pickup_notice: '认养人自取的采收记录应及时发送取菜通知，避免蔬菜存放过久或认养人错过取菜时间。',
     sync_pickup_confirmation: '取菜确认状态在采收记录和联系记录中应保持一致，确保数据准确性。',
     review_inspection_status: '任务完成后，请确认关联巡检的处理结果是否需要更新，确保问题已真正解决。',
-    handle_missing_material: '物资目录中已删除的物资仍有库存流水记录。请根据实际情况决定是恢复物资记录还是清理相关流水。'
+    handle_missing_material: '物资目录中已删除的物资仍有库存流水记录。请根据实际情况决定是恢复物资记录还是清理相关流水。',
+    repair_closure_chain: '异常处置闭环要求巡检记录与处理任务、复查任务、物资消耗形成完整链路。断链会导致问题追踪困难，责任不明确。',
+    create_missing_review_task: '需要复查的巡检记录应有对应的复查任务。遗漏复查任务可能导致问题复发或未被及时发现。',
+    mark_review_completed: '复查任务逾期未完成会影响问题的及时处理。请标记已完成的复查任务，确保闭环正常推进。',
+    repair_inventory_orphan: '库存流水引用的物资、任务、巡检等对象被删除或名称不一致，会导致数据追溯困难，影响库存统计的准确性。',
+    fix_partial_pickup_over: '已取走重量不能超过分配的自取总量。超量取货会导致数据不一致，需要调整已取货记录。',
+    unset_pickup_confirmation: '部分取走时不应标记为完全确认。应取消确认状态，等待剩余部分取走后再确认。',
+    add_contact_info: '缺少联系人信息无法发送取菜通知，需要在菜畦信息中补充认养人姓名和联系方式。',
+    wait_for_grace_period: '通知发送过于频繁可能打扰认养人，建议等待宽限期过后再补发通知。',
+    reissue_pickup_notice: '认养人超期未取菜，需要补发取菜提醒通知，避免蔬菜损耗。',
+    restore_archived_record: '已归档的记录不应被修改，需要恢复原始归档数据以保持历史记录的完整性。'
   };
   return explanations[issue.fixType] || '数据一致性问题需要及时处理，以确保各模块信息同步准确。';
 }
@@ -470,7 +496,10 @@ function getIssueExplanation(issue) {
 function getManualFixHint(issue) {
   const hints = {
     review_inspection_status: '请跳转到"巡检记录"页签，检查该巡检的详细情况，确认是否需要更新处理结果。',
-    handle_missing_material: '请跳转到"物资库存"页签，检查相关库存流水。您可以选择：1) 重新创建该物资记录；2) 删除或归档关联的库存流水。'
+    handle_missing_material: '请跳转到"物资库存"页签，检查相关库存流水。您可以选择：1) 重新创建该物资记录；2) 删除或归档关联的库存流水。',
+    add_contact_info: '请跳转到"菜畦管理"页签，点击对应菜畦查看详情，在认养人信息中补充姓名、电话、微信号等联系信息。',
+    wait_for_grace_period: '系统设置的通知间隔为1天，请等待宽限期结束后再发送补发通知，避免过度打扰认养人。',
+    restore_archived_record: '已归档记录被修改可能影响数据审计。请检查修改原因，如确需修改应先取消归档再进行调整。'
   };
   return hints[issue.fixType] || '请检查相关数据并手动调整。';
 }

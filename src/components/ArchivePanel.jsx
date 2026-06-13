@@ -3,7 +3,8 @@ import {
   Download, Upload, FileJson, AlertCircle, CheckCircle2,
   X, ChevronDown, ChevronRight, Trash2, Info, ArrowRight,
   Clock, Bug, Package, Sprout, MessageCircle, Users, Calendar,
-  Leaf, Wheat, Archive, Map, RefreshCw
+  Leaf, Wheat, Archive, Map, RefreshCw, Truck, Lock,
+  Eye, History, Bell, Scissors
 } from 'lucide-react';
 import {
   buildArchive,
@@ -15,8 +16,16 @@ import {
   persistToLocalStorage,
   summarizeImport,
   ENTITY_LABELS,
-  STORAGE_KEYS
+  STORAGE_KEYS,
+  getArchivedHarvests,
+  buildFulfillmentArchiveSummary,
+  isHarvestArchived
 } from '../utils/archive';
+import {
+  formatWeight, getFulfillmentStatus, getSelfPickupTakenGrams,
+  getSelfPickupRemainingGrams, getAllPickupNotices, DISTRIBUTION_TYPES,
+  FULFILLMENT_STATUS
+} from '../utils/distribution';
 
 const ENTITY_ICONS = {
   beds: Leaf,
@@ -31,7 +40,7 @@ const ENTITY_ICONS = {
   bedPlacement: Map
 };
 
-export function ArchivePanel({ currentState, onImportComplete }) {
+export function ArchivePanel({ currentState, onImportComplete, onViewArchivedHarvest }) {
   const fileInputRef = useRef(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [parsedArchive, setParsedArchive] = useState(null);
@@ -42,6 +51,19 @@ export function ArchivePanel({ currentState, onImportComplete }) {
   const [expandedEntities, setExpandedEntities] = useState({});
   const [importResult, setImportResult] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [activeTab, setActiveTab] = useState('import');
+  const [expandedArchivedHarvest, setExpandedArchivedHarvest] = useState(null);
+
+  const archivedHarvests = useMemo(() => {
+    return getArchivedHarvests(currentState.harvests || []);
+  }, [currentState.harvests]);
+
+  const currentFulfillmentSummary = useMemo(() => {
+    return buildFulfillmentArchiveSummary(
+      currentState.harvests || [],
+      currentState.contacts || []
+    );
+  }, [currentState.harvests, currentState.contacts]);
 
   const handleExport = () => {
     const archive = buildArchive(currentState);
@@ -172,6 +194,16 @@ export function ArchivePanel({ currentState, onImportComplete }) {
     return stats;
   }, [diff]);
 
+  const handleViewArchivedHarvest = (harvest) => {
+    if (onViewArchivedHarvest) {
+      onViewArchivedHarvest(harvest);
+    }
+  };
+
+  const toggleArchivedHarvestExpand = (id) => {
+    setExpandedArchivedHarvest((prev) => prev === id ? null : id);
+  };
+
   return (
     <div className="archivePanel">
       <div className="archiveHeader">
@@ -179,107 +211,162 @@ export function ArchivePanel({ currentState, onImportComplete }) {
         <p className="archiveSubtitle">导出完整运营数据为JSON，或导入历史档案进行合并</p>
       </div>
 
-      <div className="archiveActionsRow">
-        <button type="button" className="btn btnPrimary archiveExportBtn" onClick={handleExport}>
-          <Download size={16} />
-          导出当前档案
-        </button>
-        <div className="archiveDivider">或</div>
-        <div
-          className={`archiveDropZone ${isDragOver ? 'dragOver' : ''}`}
-          onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-          onDragLeave={() => setIsDragOver(false)}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
+      <div className="archiveTabBar">
+        <button
+          type="button"
+          className={`archiveTab ${activeTab === 'import' ? 'active' : ''}`}
+          onClick={() => setActiveTab('import')}
         >
-          <Upload size={18} />
-          <span>点击选择JSON档案，或拖拽文件到此处</span>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json,application/json"
-            style={{ display: 'none' }}
-            onChange={handleFileSelect}
-          />
-        </div>
-        {(parsedArchive || parseError) && (
-          <button type="button" className="btn btnGhost" onClick={resetImport}>
-            <X size={14} /> 清除
-          </button>
-        )}
+          <FileJson size={14} /> 导入/导出
+        </button>
+        <button
+          type="button"
+          className={`archiveTab ${activeTab === 'fulfillment' ? 'active' : ''}`}
+          onClick={() => setActiveTab('fulfillment')}
+        >
+          <Truck size={14} /> 履约摘要
+        </button>
+        <button
+          type="button"
+          className={`archiveTab ${activeTab === 'archived' ? 'active' : ''}`}
+          onClick={() => setActiveTab('archived')}
+        >
+          <Lock size={14} /> 已归档记录
+          {archivedHarvests.length > 0 && (
+            <span className="archiveTabBadge">{archivedHarvests.length}</span>
+          )}
+        </button>
       </div>
 
-      {parseError && (
-        <div className="archiveAlert archiveAlertError">
-          <AlertCircle size={18} />
-          <div>
-            <strong>档案解析失败</strong>
-            <p>{parseError}</p>
-          </div>
-        </div>
-      )}
-
-      {importResult && (
-        <ImportResultSummary result={importResult} onClose={resetImport} />
-      )}
-
-      {parsedArchive && !importResult && (
+      {activeTab === 'import' && (
         <>
-          <div className="archiveInfoCard">
-            <div className="archiveInfoHeader">
-              <FileJson size={18} />
+          <div className="archiveActionsRow">
+            <button type="button" className="btn btnPrimary archiveExportBtn" onClick={handleExport}>
+              <Download size={16} />
+              导出当前档案
+            </button>
+            <div className="archiveDivider">或</div>
+            <div
+              className={`archiveDropZone ${isDragOver ? 'dragOver' : ''}`}
+              onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload size={18} />
+              <span>点击选择JSON档案，或拖拽文件到此处</span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,application/json"
+                style={{ display: 'none' }}
+                onChange={handleFileSelect}
+              />
+            </div>
+            {(parsedArchive || parseError) && (
+              <button type="button" className="btn btnGhost" onClick={resetImport}>
+                <X size={14} /> 清除
+              </button>
+            )}
+          </div>
+
+          {parseError && (
+            <div className="archiveAlert archiveAlertError">
+              <AlertCircle size={18} />
               <div>
-                <strong>档案信息</strong>
-                <p>
-                  导出时间：{new Date(parsedArchive.exportedAt).toLocaleString('zh-CN')}
-                  &nbsp;·&nbsp; 版本：v{parsedArchive.version}
-                </p>
+                <strong>档案解析失败</strong>
+                <p>{parseError}</p>
               </div>
             </div>
-            <div className="archiveStatsGrid">
-              {Object.entries(parsedArchive.stats || {}).map(([key, count]) => {
-                const Icon = ENTITY_ICONS[key] || Info;
-                return (
-                  <div className="archiveStatItem" key={key}>
-                    <Icon size={14} />
-                    <span className="archiveStatLabel">{ENTITY_LABELS[key] || key}</span>
-                    <span className="archiveStatValue">{count}</span>
+          )}
+
+          {importResult && (
+            <ImportResultSummary result={importResult} onClose={resetImport} />
+          )}
+
+          {parsedArchive && !importResult && (
+            <>
+              <div className="archiveInfoCard">
+                <div className="archiveInfoHeader">
+                  <FileJson size={18} />
+                  <div>
+                    <strong>档案信息</strong>
+                    <p>
+                      导出时间：{new Date(parsedArchive.exportedAt).toLocaleString('zh-CN')}
+                      &nbsp;·&nbsp; 版本：v{parsedArchive.version}
+                    </p>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                </div>
 
-          {validation && (
-            <ValidationDisplay validation={validation} />
+                {parsedArchive.fulfillmentSummary && (
+                  <FulfillmentSummaryDisplay summary={parsedArchive.fulfillmentSummary} compact />
+                )}
+
+                <div className="archiveStatsGrid">
+                  {Object.entries(parsedArchive.stats || {}).map(([key, count]) => {
+                    const Icon = ENTITY_ICONS[key] || Info;
+                    return (
+                      <div className="archiveStatItem" key={key}>
+                        <Icon size={14} />
+                        <span className="archiveStatLabel">{ENTITY_LABELS[key] || key}</span>
+                        <span className="archiveStatValue">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {validation && (
+                <ValidationDisplay validation={validation} />
+              )}
+
+              {diff && diffStats && (
+                <DiffDisplay
+                  diff={diff}
+                  diffStats={diffStats}
+                  expandedEntities={expandedEntities}
+                  onToggleExpand={toggleEntityExpand}
+                  conflictResolution={conflictResolution}
+                  onResolveConflict={resolveConflict}
+                />
+              )}
+
+              <div className="archiveConfirmRow">
+                <p className="archiveConfirmHint">
+                  <Info size={14} />
+                  导入将保留本地未冲突的现有数据，冲突项按您选择的方式处理
+                </p>
+                <button
+                  type="button"
+                  className="btn btnPrimary archiveConfirmBtn"
+                  onClick={handleConfirmImport}
+                  disabled={isProcessing || (validation?.errors?.length ?? 0) > 0}
+                >
+                  {isProcessing ? '导入中...' : '确认导入并合并'}
+                </button>
+              </div>
+            </>
           )}
-
-          {diff && diffStats && (
-            <DiffDisplay
-              diff={diff}
-              diffStats={diffStats}
-              expandedEntities={expandedEntities}
-              onToggleExpand={toggleEntityExpand}
-              conflictResolution={conflictResolution}
-              onResolveConflict={resolveConflict}
-            />
-          )}
-
-          <div className="archiveConfirmRow">
-            <p className="archiveConfirmHint">
-              <Info size={14} />
-              导入将保留本地未冲突的现有数据，冲突项按您选择的方式处理
-            </p>
-            <button
-              type="button"
-              className="btn btnPrimary archiveConfirmBtn"
-              onClick={handleConfirmImport}
-              disabled={isProcessing || (validation?.errors?.length ?? 0) > 0}
-            >
-              {isProcessing ? '导入中...' : '确认导入并合并'}
-            </button>
-          </div>
         </>
+      )}
+
+      {activeTab === 'fulfillment' && (
+        <FulfillmentSummaryDisplay
+          summary={currentFulfillmentSummary}
+          harvests={currentState.harvests || []}
+          contacts={currentState.contacts || []}
+          onViewHarvest={handleViewArchivedHarvest}
+        />
+      )}
+
+      {activeTab === 'archived' && (
+        <ArchivedHarvestsDisplay
+          archivedHarvests={archivedHarvests}
+          contacts={currentState.contacts || []}
+          expandedId={expandedArchivedHarvest}
+          onToggleExpand={toggleArchivedHarvestExpand}
+          onViewHarvest={handleViewArchivedHarvest}
+        />
       )}
     </div>
   );
@@ -628,6 +715,278 @@ function ImportResultSummary({ result, onClose }) {
             <span key={k} className="storageKeyTag">{k}</span>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function FulfillmentSummaryDisplay({ summary, harvests, contacts, compact = false, onViewHarvest }) {
+  const { summary: fulfillmentStats, harvestDetails } = summary;
+
+  return (
+    <div className="fulfillmentSummarySection">
+      <div className="fulfillmentSummaryHeader">
+        <h3><Truck size={16} /> 采收履约统计</h3>
+        {fulfillmentStats && (
+          <div className="fulfillmentStatsRow">
+            <div className="fulfillmentStatItem">
+              <span className="fulfillmentStatNum">{fulfillmentStats.totalCount}</span>
+              <span className="fulfillmentStatLabel">总采收</span>
+            </div>
+            <div className="fulfillmentStatItem" style={{ color: '#2c5f8a' }}>
+              <span className="fulfillmentStatNum">{fulfillmentStats.pendingCount}</span>
+              <span className="fulfillmentStatLabel">履约中</span>
+            </div>
+            <div className="fulfillmentStatItem" style={{ color: '#8a6a2c' }}>
+              <span className="fulfillmentStatNum">{fulfillmentStats.partialCount}</span>
+              <span className="fulfillmentStatLabel">部分取走</span>
+            </div>
+            <div className="fulfillmentStatItem" style={{ color: '#2f613a' }}>
+              <span className="fulfillmentStatNum">{fulfillmentStats.completedCount}</span>
+              <span className="fulfillmentStatLabel">履约完成</span>
+            </div>
+            <div className="fulfillmentStatItem" style={{ color: '#666' }}>
+              <span className="fulfillmentStatNum">{fulfillmentStats.archivedCount}</span>
+              <span className="fulfillmentStatLabel">已归档</span>
+            </div>
+            <div className="fulfillmentStatItem">
+              <span className="fulfillmentStatNum">{formatWeight(fulfillmentStats.totalWeightGrams)}</span>
+              <span className="fulfillmentStatLabel">总重量</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {!compact && harvestDetails && harvestDetails.length > 0 && (
+        <div className="fulfillmentDetailsList">
+          <h4 style={{ margin: '16px 0 12px', fontSize: '14px', color: '#4a5a44' }}>
+            <History size={14} style={{ verticalAlign: 'middle' }} /> 履约明细
+          </h4>
+          <div className="harvestArchiveList">
+            {harvestDetails.map((h) => (
+              <HarvestArchiveItem
+                key={h.id}
+                detail={h}
+                compact={compact}
+                onView={onViewHarvest ? () => {
+                  const fullHarvest = harvests?.find((h2) => h2.id === h.id);
+                  if (fullHarvest) onViewHarvest(fullHarvest);
+                } : undefined}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HarvestArchiveItem({ detail, compact, onView }) {
+  const [expanded, setExpanded] = useState(false);
+  const color = detail.fulfillmentStatus === FULFILLMENT_STATUS.COMPLETED ? '#2f613a' :
+                detail.fulfillmentStatus === FULFILLMENT_STATUS.PARTIAL ? '#8a6a2c' :
+                detail.fulfillmentStatus === FULFILLMENT_STATUS.ARCHIVED ? '#666' : '#2c5f8a';
+
+  return (
+    <div className={`harvestArchiveItem ${detail.archived ? 'archived' : ''}`}>
+      <div
+        className="harvestArchiveItemHeader"
+        onClick={() => !compact && setExpanded(!expanded)}
+        style={{ cursor: compact ? 'default' : 'pointer' }}
+      >
+        <div className="harvestArchiveItemMain">
+          <strong>{detail.crop}</strong>
+          <span className="harvestArchiveWeight">{detail.weight}</span>
+          <span
+            className="queueCardBadge"
+            style={{ background: `${color}15`, color, marginLeft: '6px' }}
+          >
+            <Truck size={10} /> {detail.fulfillmentLabel}
+          </span>
+          {detail.archived && (
+            <span style={{
+              display: 'inline-block',
+              padding: '2px 6px',
+              background: '#e8e8e8',
+              color: '#666',
+              fontSize: '10px',
+              borderRadius: '4px',
+              marginLeft: '6px'
+            }}>
+              <Lock size={10} style={{ verticalAlign: 'middle' }} /> 已归档
+            </span>
+          )}
+        </div>
+        <div className="harvestArchiveItemMeta">
+          <span>{detail.bed} · {detail.date}</span>
+          {!compact && (expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
+        </div>
+      </div>
+
+      {!compact && expanded && (
+        <div className="harvestArchiveItemDetails">
+          {detail.distribution && (
+            <div className="archiveDistributionDisplay">
+              <div style={{ fontSize: '12px', color: '#71806a', marginBottom: '6px' }}>
+                <Package size={12} style={{ verticalAlign: 'middle' }} /> 分配去向
+              </div>
+              <div className="queueDistributionSummary">
+                {DISTRIBUTION_TYPES.map((t) => {
+                  const val = detail.distribution[t.key];
+                  if (!val) return null;
+                  return (
+                    <span key={t.key} className="queueDistTag" style={{ borderLeft: `3px solid ${t.color}` }}>
+                      {t.label}: {val}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {detail.selfPickupTotalGrams > 0 && (
+            <div className="archivePickupDisplay">
+              <div style={{ fontSize: '12px', color: '#71806a', marginBottom: '6px' }}>
+                <Scissors size={12} style={{ verticalAlign: 'middle' }} /> 自取进度
+              </div>
+              <div style={{ fontSize: '13px' }}>
+                已取 <strong style={{ color: '#2c5f8a' }}>{formatWeight(detail.selfPickupTakenGrams)}</strong>
+                <span style={{ color: '#87917f' }}> / {formatWeight(detail.selfPickupTotalGrams)}</span>
+                {detail.selfPickupRemainingGrams > 0 && (
+                  <span style={{ marginLeft: '8px', color: '#8a6a2c' }}>
+                    待取 {formatWeight(detail.selfPickupRemainingGrams)}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {detail.noticeCount > 0 && (
+            <div className="archiveNoticeDisplay">
+              <div style={{ fontSize: '12px', color: '#71806a', marginBottom: '6px' }}>
+                <Bell size={12} style={{ verticalAlign: 'middle' }} /> 通知历史 ({detail.noticeCount}次)
+              </div>
+              <div style={{ fontSize: '12px', color: '#5a6a54' }}>
+                {detail.notices.map((n, i) => (
+                  <span key={i} style={{ marginRight: '12px' }}>
+                    {n.date} {n.time}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {detail.history && detail.history.length > 0 && (
+            <div className="archiveHistoryDisplay">
+              <div style={{ fontSize: '12px', color: '#71806a', marginBottom: '6px' }}>
+                <History size={12} style={{ verticalAlign: 'middle' }} /> 履约历史
+              </div>
+              <div style={{ fontSize: '12px', color: '#5a6a54' }}>
+                {detail.history.slice(0, 5).map((h, i) => (
+                  <div key={i} style={{ marginBottom: '4px' }}>
+                    {h.timestamp}: {h.action}
+                    {h.details && Object.keys(h.details).length > 0 && (
+                      <span style={{ color: '#87917f', marginLeft: '6px' }}>
+                        ({Object.entries(h.details).map(([k, v]) => `${k}: ${v}`).join(', ')})
+                      </span>
+                    )}
+                  </div>
+                ))}
+                {detail.history.length > 5 && (
+                  <div style={{ color: '#87917f' }}>...以及 {detail.history.length - 5} 条记录</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {detail.archivedAt && (
+            <div style={{ marginTop: '8px', fontSize: '12px', color: '#87917f' }}>
+              归档时间：{new Date(detail.archivedAt).toLocaleString('zh-CN')}
+            </div>
+          )}
+
+          {onView && (
+            <div style={{ marginTop: '12px' }}>
+              <button
+                type="button"
+                className="btn btnGhost btnSmall"
+                onClick={(e) => { e.stopPropagation(); onView(); }}
+              >
+                <Eye size={12} /> 查看完整记录（只读）
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ArchivedHarvestsDisplay({ archivedHarvests, contacts, expandedId, onToggleExpand, onViewHarvest }) {
+  if (archivedHarvests.length === 0) {
+    return (
+      <div className="emptyState">
+        <Lock size={36} />
+        <p>暂无已归档的采收记录</p>
+        <p className="muted">完成履约的采收记录可以标记为归档</p>
+      </div>
+    );
+  }
+
+  const archiveDetails = useMemo(() => {
+    return archivedHarvests.map((h) => {
+      const fulfillment = getFulfillmentStatus(h);
+      const takenGrams = getSelfPickupTakenGrams(h.distribution);
+      const remainingGrams = getSelfPickupRemainingGrams(h.distribution);
+      const notices = getAllPickupNotices(contacts, h.id);
+      const selfPickupGrams = h.distribution?.selfPickup ? parseWeight(h.distribution.selfPickup) : 0;
+      return {
+        id: h.id,
+        crop: h.crop,
+        bed: h.bed,
+        date: h.date,
+        weight: h.weight,
+        totalGrams: parseWeight(h.weight),
+        fulfillmentStatus: fulfillment.key,
+        fulfillmentLabel: fulfillment.label,
+        distribution: h.distribution || null,
+        selfPickupTotalGrams: selfPickupGrams,
+        selfPickupTakenGrams: takenGrams,
+        selfPickupRemainingGrams: remainingGrams,
+        noticeCount: notices.length,
+        notices: notices.map((n) => ({ date: n.date, time: n.time, type: n.type })),
+        history: h.distribution?.history || [],
+        archived: true,
+        archivedAt: h.archivedAt
+      };
+    });
+  }, [archivedHarvests, contacts]);
+
+  return (
+    <div className="archivedHarvestsSection">
+      <div className="archivedHarvestsHeader">
+        <h3><Lock size={16} /> 已归档采收记录</h3>
+        <span style={{ fontSize: '12px', color: '#71806a' }}>
+          共 {archivedHarvests.length} 条 · 只读展示，不可修改
+        </span>
+      </div>
+
+      <div className="archiveReadOnlyNotice">
+        <Info size={14} />
+        <span>已归档记录为只读状态，无法修改分配或履约信息。如需修改，请先取消归档。</span>
+      </div>
+
+      <div className="harvestArchiveList">
+        {archiveDetails.map((detail) => (
+          <HarvestArchiveItem
+            key={detail.id}
+            detail={detail}
+            onView={onViewHarvest ? () => {
+              const fullHarvest = archivedHarvests.find((h) => h.id === detail.id);
+              if (fullHarvest) onViewHarvest(fullHarvest);
+            } : undefined}
+          />
+        ))}
       </div>
     </div>
   );
