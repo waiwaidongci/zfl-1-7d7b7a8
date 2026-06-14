@@ -549,6 +549,37 @@ export const recordPartialPickup = (distribution, takenWeightStr) => {
   return updated;
 };
 
+export const recordNoticeSent = (distribution, noticeType = 'initial') => {
+  if (!distribution) return distribution;
+  return addDistributionHistory(distribution, 'notice_sent', {
+    noticeType,
+    timestamp: new Date().toISOString()
+  });
+};
+
+export const confirmFullPickup = (distribution) => {
+  if (!distribution || !distribution.selfPickup) return distribution;
+
+  const totalSelfPickup = parseWeight(distribution.selfPickup) || 0;
+  if (totalSelfPickup <= 0) return distribution;
+
+  const totalStr = distribution.selfPickup;
+
+  let updated = {
+    ...distribution,
+    selfPickupTaken: totalStr,
+    selfPickupConfirmedAt: new Date().toISOString()
+  };
+
+  updated = addDistributionHistory(updated, 'pickup_confirmed', {
+    totalWeight: totalStr,
+    totalGrams: totalSelfPickup,
+    timestamp: new Date().toISOString()
+  });
+
+  return updated;
+};
+
 export const canReissuePickupNotice = (contacts, harvestId, graceDays = PICKUP_REISSUE_GRACE_DAYS) => {
   const notices = contacts.filter(c =>
     c.relatedHarvestId === harvestId && c.type === '取菜通知'

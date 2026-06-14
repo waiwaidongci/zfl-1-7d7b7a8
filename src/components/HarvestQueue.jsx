@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   ListTodo, Filter, CalendarDays, Bell, CheckCircle2,
   Package, AlertCircle, Clock, MessageCircle, ChevronDown, X,
-  Truck, RefreshCw, Scissors, AlertTriangle, Lock, User
+  Truck, RefreshCw, Scissors, AlertTriangle, Lock, User,
+  Archive
 } from 'lucide-react';
 import {
   QUEUE_STATUS,
@@ -35,6 +36,8 @@ import {
   canReissuePickupNotice,
   recordPartialPickup,
   addDistributionHistory,
+  recordNoticeSent,
+  confirmFullPickup,
   hasCompleteContactInfo,
   getMissingContactInfo,
   splitHarvestByDateRange,
@@ -46,6 +49,7 @@ import {
   PICKUP_REISSUE_GRACE_DAYS,
   FULFILLMENT_STATUS
 } from '../utils/distribution';
+import { isHarvestArchived } from '../utils/archive';
 
 export function HarvestQueue({
   harvests,
@@ -54,6 +58,7 @@ export function HarvestQueue({
   setContacts,
   setHarvests,
   onOpenDistribution,
+  onArchiveHarvest,
   initialQueueKey = '',
   initialStartDate = '',
   initialEndDate = '',
@@ -131,6 +136,14 @@ export function HarvestQueue({
     const contact = generatePickupNoticeContact(harvest, beds);
     if (contact) {
       setContacts([contact, ...contacts]);
+      setHarvests(harvests.map(h => {
+        if (h.id !== harvestId) return h;
+        if (!h.distribution) return h;
+        return {
+          ...h,
+          distribution: recordNoticeSent(h.distribution, 'initial')
+        };
+      }));
     }
   };
 
@@ -140,10 +153,7 @@ export function HarvestQueue({
       if (!h.distribution || !h.distribution.selfPickup) return h;
       return {
         ...h,
-        distribution: {
-          ...h.distribution,
-          selfPickupConfirmedAt: new Date().toISOString().slice(0, 10)
-        }
+        distribution: confirmFullPickup(h.distribution)
       };
     }));
     if (checkPickupNoticeExists(contacts, harvestId)) {
@@ -158,6 +168,14 @@ export function HarvestQueue({
     const contact = generateReissueNoticeContact(harvest, beds, contacts);
     if (contact && !contact.error) {
       setContacts([contact, ...contacts]);
+      setHarvests(harvests.map(h => {
+        if (h.id !== harvestId) return h;
+        if (!h.distribution) return h;
+        return {
+          ...h,
+          distribution: recordNoticeSent(h.distribution, 'reissue')
+        };
+      }));
     }
   };
 
@@ -486,6 +504,17 @@ export function HarvestQueue({
             >
               <Scissors size={12} />
               登记部分取走
+            </button>
+          )}
+          {!isArchived && fulfillment.key === FULFILLMENT_STATUS.COMPLETED && onArchiveHarvest && (
+            <button
+              type="button"
+              className="miniBtn"
+              onClick={() => onArchiveHarvest(harvest.id)}
+              style={{ background: '#e8e8f0', color: '#445', borderColor: '#c0c0d0' }}
+            >
+              <Archive size={12} />
+              归档
             </button>
           )}
           {!isArchived && (

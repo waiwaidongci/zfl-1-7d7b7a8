@@ -25,6 +25,8 @@ import {
   canReissuePickupNotice,
   recordPartialPickup,
   addDistributionHistory,
+  recordNoticeSent,
+  confirmFullPickup,
   hasCompleteContactInfo,
   getMissingContactInfo
 } from '../utils/distribution';
@@ -135,6 +137,15 @@ export function DistributionModal({
     const contact = generatePickupNoticeContact(tempHarvest, beds);
     if (contact) {
       setContacts([contact, ...contacts]);
+      const updatedDist = recordNoticeSent({
+        ...harvest.distribution,
+        ...form
+      }, 'initial');
+      onSave({
+        ...harvest.distribution,
+        ...form,
+        history: updatedDist.history
+      });
     }
   };
 
@@ -143,6 +154,15 @@ export function DistributionModal({
     const contact = generateReissueNoticeContact(harvest, beds, contacts);
     if (contact && !contact.error) {
       setContacts([contact, ...contacts]);
+      const updatedDist = recordNoticeSent({
+        ...harvest.distribution,
+        ...form
+      }, 'reissue');
+      onSave({
+        ...harvest.distribution,
+        ...form,
+        history: updatedDist.history
+      });
     }
   };
 
@@ -183,16 +203,23 @@ export function DistributionModal({
       if (v) cleaned[t.key] = v;
     }
     if (selfPickupConfirmed && selfPickupTotalGrams > 0) {
-      cleaned.selfPickupConfirmedAt = displayedConfirmedAt;
+      const confirmedDist = confirmFullPickup({
+        ...harvest.distribution,
+        ...form
+      });
+      cleaned.selfPickupConfirmedAt = confirmedDist.selfPickupConfirmedAt;
+      cleaned.selfPickupTaken = confirmedDist.selfPickupTaken;
+      cleaned.history = confirmedDist.history;
       if (harvest && checkPickupNoticeExists(contacts, harvest.id)) {
         setContacts(confirmPickupContact(contacts, harvest.id));
       }
-    }
-    if (harvest?.distribution?.history) {
-      cleaned.history = harvest.distribution.history;
-    }
-    if (harvest?.distribution?.selfPickupTaken) {
-      cleaned.selfPickupTaken = harvest.distribution.selfPickupTaken;
+    } else {
+      if (harvest?.distribution?.history) {
+        cleaned.history = harvest.distribution.history;
+      }
+      if (harvest?.distribution?.selfPickupTaken) {
+        cleaned.selfPickupTaken = harvest.distribution.selfPickupTaken;
+      }
     }
     onSave(Object.keys(cleaned).length > 0 ? cleaned : null);
   };

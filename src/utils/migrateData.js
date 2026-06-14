@@ -189,6 +189,12 @@ export const migrateHarvests = (harvests) => {
           dist.selfPickupTaken = normalized;
         }
       }
+      if (dist.selfPickupConfirmedAt && !dist.selfPickupTaken && dist.selfPickup) {
+        dist.selfPickupTaken = dist.selfPickup;
+      }
+      if (!dist.history) {
+        dist.history = [];
+      }
     }
 
     return migrated;

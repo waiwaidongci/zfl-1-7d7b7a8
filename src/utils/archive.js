@@ -1,7 +1,8 @@
 import {
   parseWeight, isValidWeightFormat, DISTRIBUTION_TYPES, formatWeight,
   getFulfillmentStatus, getFulfillmentSummary, getSelfPickupTakenGrams,
-  getSelfPickupRemainingGrams, getAllPickupNotices, FULFILLMENT_STATUS
+  getSelfPickupRemainingGrams, getAllPickupNotices, FULFILLMENT_STATUS,
+  addDistributionHistory
 } from './distribution';
 
 const ARCHIVE_VERSION = '1.0.0';
@@ -73,11 +74,20 @@ export const buildFulfillmentArchiveSummary = (harvests, contacts) => {
 };
 
 export const markHarvestAsArchived = (harvest, archivedAt = null) => {
+  const timestamp = archivedAt || new Date().toISOString();
+  let updatedDistribution = harvest.distribution || {};
+  if (updatedDistribution) {
+    updatedDistribution = addDistributionHistory(updatedDistribution, 'archived', {
+      archivedAt: timestamp,
+      timestamp
+    });
+  }
   return {
     ...harvest,
     archived: true,
-    archivedAt: archivedAt || new Date().toISOString(),
-    fulfillmentStatus: FULFILLMENT_STATUS.ARCHIVED
+    archivedAt: timestamp,
+    fulfillmentStatus: FULFILLMENT_STATUS.ARCHIVED,
+    distribution: updatedDistribution
   };
 };
 

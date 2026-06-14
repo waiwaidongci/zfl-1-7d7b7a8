@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Wheat, Search, AlertCircle, CheckCircle2, Clock, Package,
   User, Users, Heart, Trash2, Filter, CalendarDays, Bell, MessageCircle,
-  ListTodo, LayoutList, Scissors, Truck, RefreshCw, AlertTriangle
+  ListTodo, LayoutList, Scissors, Truck, RefreshCw, AlertTriangle,
+  Archive, Lock
 } from 'lucide-react';
 import { DistributionModal } from './DistributionModal';
 import { HarvestQueue } from './HarvestQueue';
@@ -36,6 +37,8 @@ import {
   getFulfillmentSummary,
   recordPartialPickup,
   addDistributionHistory,
+  recordNoticeSent,
+  confirmFullPickup,
   validateDistributionWithPartial,
   hasCompleteContactInfo,
   getMissingContactInfo,
@@ -47,6 +50,7 @@ import {
   groupHarvestsByCrop
 } from '../utils/distribution';
 import { iso } from '../data/seedData';
+import { isHarvestArchived, canModifyArchivedHarvest } from '../utils/archive';
 
 const typeIcons = {
   selfPickup: User,
@@ -60,7 +64,8 @@ export function DistributionTab({
   beds, contacts, setContacts,
   materials, harvestConsumptions, setHarvestConsumptions, renderConsumptionSuggestions,
   initialView = 'list', initialQueueKey = '', initialStartDate = '', initialEndDate = '',
-  queueRequestId = 0
+  queueRequestId = 0,
+  onArchiveHarvest
 }) {
   const [editingHarvest, setEditingHarvest] = useState(null);
   const [statusFilter, setStatusFilter] = useState('');
@@ -88,6 +93,14 @@ export function DistributionTab({
     const contact = generatePickupNoticeContact(harvest, beds);
     if (contact) {
       setContacts([contact, ...contacts]);
+      setHarvests(harvests.map(h => {
+        if (h.id !== harvestId) return h;
+        if (!h.distribution) return h;
+        return {
+          ...h,
+          distribution: recordNoticeSent(h.distribution, 'initial')
+        };
+      }));
     }
   };
 
@@ -98,6 +111,14 @@ export function DistributionTab({
     const contact = generateReissueNoticeContact(harvest, beds, contacts);
     if (contact && !contact.error) {
       setContacts([contact, ...contacts]);
+      setHarvests(harvests.map(h => {
+        if (h.id !== harvestId) return h;
+        if (!h.distribution) return h;
+        return {
+          ...h,
+          distribution: recordNoticeSent(h.distribution, 'reissue')
+        };
+      }));
     }
   };
 
@@ -107,10 +128,7 @@ export function DistributionTab({
       if (!h.distribution || !h.distribution.selfPickup) return h;
       return {
         ...h,
-        distribution: {
-          ...h.distribution,
-          selfPickupConfirmedAt: iso(0)
-        }
+        distribution: confirmFullPickup(h.distribution)
       };
     }));
     if (checkPickupNoticeExists(contacts, harvestId)) {
@@ -213,6 +231,7 @@ export function DistributionTab({
           setContacts={setContacts}
           setHarvests={setHarvests}
           onOpenDistribution={openDistribution}
+          onArchiveHarvest={onArchiveHarvest}
           initialQueueKey={initialQueueKey}
           initialStartDate={initialStartDate}
           initialEndDate={initialEndDate}
@@ -775,6 +794,17 @@ export function DistributionTab({
                           <CheckCircle2 size={12} />
                           {pickup.confirmedAt?.slice(5) || ''} 已取
                         </span>
+                      )}
+                      {!harvest.archived && fulfillment.key === FULFILLMENT_STATUS.COMPLETED && onArchiveHarvest && (
+                        <button
+                          type="button"
+                          className="miniBtn"
+                          onClick={() => onArchiveHarvest(harvest.id)}
+                          style={{ background: '#e8e8f0', color: '#445', borderColor: '#c0c0d0' }}
+                        >
+                          <Archive size={12} />
+                          归档
+                        </button>
                       )}
                       {!harvest.archived && (
                         <button type="button" className="miniBtn distributionBtn" onClick={() => openDistribution(harvest)}>
