@@ -69,10 +69,10 @@ export const getClosedLoopStatus = (inspection, tasks, transactions) => {
     } else if (status.details.hasFollowupTask && status.details.hasReviewTask) {
       if (status.details.followupTaskDone && status.details.reviewTaskDone) {
         status.status = CLOSED_LOOP_STATUS.COMPLETE;
-      } else if (!status.details.followupTaskDone || !status.details.reviewTaskDone) {
+      } else {
         status.status = CLOSED_LOOP_STATUS.PENDING;
       }
-    } else if (status.details.hasFollowupTask && !treatment.needsFollowupPlan) {
+    } else if (status.details.hasFollowupTask) {
       status.status = status.details.followupTaskDone ? CLOSED_LOOP_STATUS.COMPLETE : CLOSED_LOOP_STATUS.PENDING;
     } else {
       status.status = CLOSED_LOOP_STATUS.COMPLETE;

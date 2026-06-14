@@ -217,13 +217,14 @@ export function validateArchiveData(archiveData) {
     });
   });
 
-  const bedIds = new Set((data.beds || []).map(b => b.id));
-  const bedNames = new Set((data.beds || []).map(b => b.name));
-  const materialIds = new Set((data.materials || []).map(m => m.id));
-  const taskIds = new Set((data.tasks || []).map(t => t.id));
-  const harvestIds = new Set((data.harvests || []).map(h => h.id));
-  const plantIds = new Set((data.plants || []).map(p => p.id));
-  const inspectionIds = new Set((data.inspections || []).map(i => i.id));
+  const validItem = (item) => item && typeof item === 'object' && !Array.isArray(item) && item.id;
+  const bedIds = new Set((data.beds || []).filter(validItem).map(b => b.id));
+  const bedNames = new Set((data.beds || []).filter(b => b && b.name).map(b => b.name));
+  const materialIds = new Set((data.materials || []).filter(validItem).map(m => m.id));
+  const taskIds = new Set((data.tasks || []).filter(validItem).map(t => t.id));
+  const harvestIds = new Set((data.harvests || []).filter(validItem).map(h => h.id));
+  const plantIds = new Set((data.plants || []).filter(validItem).map(p => p.id));
+  const inspectionIds = new Set((data.inspections || []).filter(validItem).map(i => i.id));
 
   (data.harvests || []).forEach((h, idx) => {
     if (!isValidWeightFormat(h.weight)) {

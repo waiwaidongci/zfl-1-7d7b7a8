@@ -6,14 +6,20 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5171",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0 --port 5171"
+    "preview": "vite preview --host 0.0.0.0 --port 5171",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.7.0",
-    "vite": "^7.0.0",
+    "lucide-react": "^0.468.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "lucide-react": "^0.468.0"
+    "vite": "^7.0.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@vitest/ui": "^4.1.8",
+    "vitest": "^4.1.8"
+  }
 }
