@@ -26,14 +26,12 @@ import {
   checkPickupNoticeExists,
   findRelatedPickupNotice,
   getAllPickupNotices,
-  canReissuePickupNotice,
   getQueueStats,
   getThisWeekRange,
   buildInitialDistribution,
   getFulfillmentStatus,
   getFulfillmentSummary,
   validateDistributionWithPartial,
-  hasCompleteContactInfo,
   getMissingContactInfo,
   getSelfPickupTakenGrams,
   getSelfPickupRemainingGrams,
@@ -318,7 +316,7 @@ export function DistributionTab({
                       请尽快联系认养人
                     </span>
                     <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                      {canSendPickupNotice(h.id) && (
+                      {canSendPickupNotice(h) && (
                         <button type="button" className="miniBtn" style={{ background: '#e8f0fa', color: '#2c5f8a', borderColor: '#a0c0e0' }} onClick={() => sendPickupNotice(h.id)}>
                           <Bell size={12} />发送通知
                         </button>
@@ -365,7 +363,7 @@ export function DistributionTab({
                       待认养人取走
                     </span>
                     <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                      {canSendPickupNotice(h.id) && (
+                      {canSendPickupNotice(h) && (
                         <button type="button" className="miniBtn" style={{ marginTop: 0, marginLeft: 0, background: '#e8f0fa', color: '#2c5f8a', borderColor: '#a0c0e0' }} onClick={() => sendPickupNotice(h.id)}>
                           <Bell size={12} />发送通知
                         </button>
@@ -517,8 +515,6 @@ export function DistributionTab({
                 const selfPickupTaken = getSelfPickupTakenGrams(harvest.distribution);
                 const selfPickupRemaining = getSelfPickupRemainingGrams(harvest.distribution);
                 const notices = getAllPickupNotices(contacts, harvest.id);
-                const canReissue = canReissuePickupNotice(contacts, harvest.id, PICKUP_REISSUE_GRACE_DAYS);
-                const hasContactInfo = hasCompleteContactInfo(harvest, beds);
                 const missingContact = getMissingContactInfo(harvest, beds);
 
                 return (
@@ -617,7 +613,7 @@ export function DistributionTab({
                               已发送 {notices.length} 次通知，最近：{notices[0].date}
                             </div>
                           )}
-                          {!hasContactInfo && missingContact.length > 0 && (
+                          {missingContact.length > 0 && (
                             <div style={{ fontSize: '11px', color: '#b04a2a', marginTop: '4px' }}>
                               <AlertTriangle size={10} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
                               缺少联系人信息：{missingContact.join('、')}
@@ -695,7 +691,7 @@ export function DistributionTab({
                     <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap' }}>
                       {pickup.key === 'pending' && !harvest.archived && (
                         <>
-                          {canSendPickupNotice(harvest.id) && (
+                          {canSendPickupNotice(harvest) && (
                             <button
                               type="button"
                               className="miniBtn pickupNoticeBtn"
@@ -706,7 +702,7 @@ export function DistributionTab({
                               发送取菜通知
                             </button>
                           )}
-                          {canReissuePickupNotice(harvest.id) && (
+                          {canReissuePickupNotice(harvest) && (
                             <button
                               type="button"
                               className="miniBtn"
@@ -717,7 +713,7 @@ export function DistributionTab({
                               补发通知
                             </button>
                           )}
-                          {checkPickupNoticeExists(contacts, harvest.id) && !canReissuePickupNotice(harvest.id) && (
+                          {checkPickupNoticeExists(contacts, harvest.id) && !canReissuePickupNotice(harvest) && (
                             <span className="muted" style={{ fontSize: '12px', color: '#8a7a6a' }}>
                               {PICKUP_REISSUE_GRACE_DAYS}天内请勿重复通知
                             </span>

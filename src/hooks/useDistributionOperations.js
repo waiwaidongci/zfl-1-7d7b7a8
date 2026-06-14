@@ -35,31 +35,28 @@ export function useDistributionOperations({
     setContacts([contact, ...contacts]);
   };
 
-  const canSendPickupNotice = (harvestId) => {
-    const harvest = harvests.find(h => h.id === harvestId);
+  const canSendPickupNotice = (harvest) => {
     if (!harvest || !harvest.distribution?.selfPickup) return false;
     if (harvest.archived) return false;
-    if (checkPickupNoticeExists(contacts, harvestId)) return false;
+    if (checkPickupNoticeExists(contacts, harvest.id)) return false;
     if (!hasCompleteContactInfo(harvest, beds)) return false;
     return true;
   };
 
-  const canReissuePickupNoticeOp = (harvestId) => {
-    const harvest = harvests.find(h => h.id === harvestId);
-    if (!harvest || harvest.archived) return false;
-    if (!checkPickupNoticeExists(contacts, harvestId)) return false;
+  const canReissuePickupNoticeOp = (harvest) => {
+    if (!harvest || !harvest.distribution?.selfPickup) return false;
+    if (harvest.archived) return false;
+    if (!checkPickupNoticeExists(contacts, harvest.id)) return false;
     if (!hasCompleteContactInfo(harvest, beds)) return false;
-    return canReissuePickupNotice(contacts, harvestId, PICKUP_REISSUE_GRACE_DAYS);
+    return canReissuePickupNotice(contacts, harvest.id, PICKUP_REISSUE_GRACE_DAYS);
   };
 
-  const canConfirmPickup = (harvestId) => {
-    const harvest = harvests.find(h => h.id === harvestId);
+  const canConfirmPickup = (harvest) => {
     if (!harvest || !harvest.distribution?.selfPickup || harvest.archived) return false;
     return true;
   };
 
-  const canRecordPartialPickup = (harvestId, weightStr) => {
-    const harvest = harvests.find(h => h.id === harvestId);
+  const canRecordPartialPickup = (harvest, weightStr) => {
     if (!harvest || !harvest.distribution || harvest.archived) return false;
     if (!isValidWeightFormat(weightStr)) return false;
     return true;

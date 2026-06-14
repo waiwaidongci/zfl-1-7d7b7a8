@@ -30,8 +30,6 @@ import {
   checkPickupNoticeExists,
   findRelatedPickupNotice,
   getAllPickupNotices,
-  canReissuePickupNotice,
-  hasCompleteContactInfo,
   getMissingContactInfo,
   splitHarvestByDateRange,
   groupHarvestsByAdopter,
@@ -72,7 +70,11 @@ export function HarvestQueue({
     sendPickupNotice,
     reissuePickupNotice,
     confirmPickup,
-    recordPartialPickup
+    recordPartialPickup,
+    canSendPickupNotice,
+    canReissuePickupNotice,
+    canConfirmPickup,
+    canRecordPartialPickup
   } = useDistributionOperations({
     harvests,
     setHarvests,
@@ -136,10 +138,6 @@ export function HarvestQueue({
     });
   }, [baseFilteredHarvests, activeQueueKey]);
 
-  const generatePickupNotice = (harvestId) => {
-    sendPickupNotice(harvestId);
-  };
-
   const handlePartialPickup = (harvestId) => {
     if (recordPartialPickup(harvestId, partialPickupWeight)) {
       setPartialPickupHarvestId(null);
@@ -196,8 +194,6 @@ export function HarvestQueue({
     const noticeSent = checkPickupNoticeExists(contacts, harvest.id);
     const relatedNotice = findRelatedPickupNotice(contacts, harvest.id);
     const allNotices = getAllPickupNotices(contacts, harvest.id);
-    const canReissue = canReissuePickupNotice(contacts, harvest.id, PICKUP_REISSUE_GRACE_DAYS);
-    const hasContact = hasCompleteContactInfo(harvest, beds);
     const missingContact = getMissingContactInfo(harvest, beds);
     const daysSinceHarvest = Math.floor((new Date() - new Date(harvest.date)) / 86400000);
     const isArchived = harvest.archived;
@@ -335,7 +331,7 @@ export function HarvestQueue({
                   尚未发送取菜通知
                 </span>
               )}
-              {!hasContact && missingContact.length > 0 && (
+              {missingContact.length > 0 && (
                 <span style={{ fontSize: '11px', color: '#b04a2a', marginTop: '4px', display: 'block' }}>
                   <AlertTriangle size={10} style={{ verticalAlign: 'middle' }} />
                   缺少联系人信息：{missingContact.join('、')}
@@ -406,17 +402,17 @@ export function HarvestQueue({
         <div className="queueCardActions">
           {(queueStatus.key === 'pendingPickup' || queueStatus.key === 'overduePickup') && !isArchived && (
             <>
-              {!noticeSent && hasContact && (
+              {canSendPickupNotice(harvest) && (
                 <button
                   type="button"
                   className={`miniBtn ${queueStatus.key === 'overduePickup' ? 'queueActionOverdue' : 'queueActionNotice'}`}
-                  onClick={() => generatePickupNotice(harvest.id)}
+                  onClick={() => sendPickupNotice(harvest.id)}
                 >
                   <Bell size={12} />
                   发送取菜通知
                 </button>
               )}
-              {noticeSent && canReissue && hasContact && (
+              {canReissuePickupNotice(harvest) && (
                 <button
                   type="button"
                   className="miniBtn"
@@ -427,19 +423,21 @@ export function HarvestQueue({
                   补发通知
                 </button>
               )}
-              {noticeSent && !canReissue && (
+              {noticeSent && !canReissuePickupNotice(harvest) && (
                 <span style={{ fontSize: '12px', color: '#8a7a6a' }}>
                   {PICKUP_REISSUE_GRACE_DAYS}天内请勿重复通知
                 </span>
               )}
-              <button
-                type="button"
-                className={`miniBtn ${queueStatus.key === 'overduePickup' ? 'queueActionOverdue' : 'queueActionConfirm'}`}
-                onClick={() => confirmPickup(harvest.id)}
-              >
-                <CheckCircle2 size={12} />
-                {queueStatus.key === 'overduePickup' ? '标记全部已取' : '确认全部取走'}
-              </button>
+              {canConfirmPickup(harvest) && (
+                <button
+                  type="button"
+                  className={`miniBtn ${queueStatus.key === 'overduePickup' ? 'queueActionOverdue' : 'queueActionConfirm'}`}
+                  onClick={() => confirmPickup(harvest.id)}
+                >
+                  <CheckCircle2 size={12} />
+                  {queueStatus.key === 'overduePickup' ? '标记全部已取' : '确认全部取走'}
+                </button>
+              )}
             </>
           )}
           {fulfillment.key === FULFILLMENT_STATUS.PARTIAL && !isArchived && partialPickupHarvestId !== harvest.id && (
