@@ -376,7 +376,7 @@ export function HarvestQueue({
                   className="miniBtn"
                   style={{ background: '#8a6a2c', color: '#fff', borderColor: '#8a6a2c' }}
                   onClick={() => handlePartialPickup(harvest.id)}
-                  disabled={!isValidWeightFormat(partialPickupWeight)}
+                  disabled={!canRecordPartialPickup(harvest, partialPickupWeight)}
                 >
                   登记
                 </button>

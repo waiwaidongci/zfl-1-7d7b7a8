@@ -148,8 +148,7 @@ function App() {
     saveDistribution,
     canSendPickupNotice,
     canReissuePickupNotice,
-    canConfirmPickup,
-    canRecordPartialPickup
+    canConfirmPickup
   } = useDistributionOperations({
     harvests,
     setHarvests,

@@ -669,7 +669,7 @@ export function DistributionTab({
                               className="miniBtn"
                               style={{ background: '#8a6a2c', color: '#fff', borderColor: '#8a6a2c' }}
                               onClick={() => handlePartialPickup(harvest.id, partialPickupWeight)}
-                              disabled={!isValidWeightFormat(partialPickupWeight) || harvest.archived}
+                              disabled={!canRecordPartialPickup(harvest, partialPickupWeight)}
                             >
                               登记本次取走
                             </button>
