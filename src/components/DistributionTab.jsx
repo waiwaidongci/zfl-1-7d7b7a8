@@ -191,10 +191,22 @@ export function DistributionTab({
   }, [harvests, query, statusFilter]);
 
   const saveDistribution = (harvestId, distribution) => {
+    const harvest = harvests.find((h) => h.id === harvestId);
+    let nextDistribution = distribution ? { ...distribution, distributionUpdatedAt: iso(0) } : null;
+    if (harvest && nextDistribution?.selfPickup && !checkPickupNoticeExists(contacts, harvestId)) {
+      const contact = generatePickupNoticeContact(
+        { ...harvest, distribution: nextDistribution },
+        beds
+      );
+      if (contact) {
+        setContacts([contact, ...contacts]);
+        nextDistribution = recordNoticeSent(nextDistribution, 'initial');
+      }
+    }
     setHarvests(harvests.map((h) =>
       h.id === harvestId ? {
         ...h,
-        distribution: distribution ? { ...distribution, distributionUpdatedAt: iso(0) } : null
+        distribution: nextDistribution
       } : h
     ));
     setEditingHarvest(null);

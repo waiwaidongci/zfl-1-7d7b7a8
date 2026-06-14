@@ -722,6 +722,16 @@ function ImportResultSummary({ result, onClose }) {
 
 function FulfillmentSummaryDisplay({ summary, harvests, contacts, compact = false, onViewHarvest }) {
   const { summary: fulfillmentStats, harvestDetails } = summary;
+  const totalCount = fulfillmentStats?.totalCount ?? fulfillmentStats?.total ?? 0;
+  const pendingCount = fulfillmentStats?.pendingCount ?? fulfillmentStats?.pending ?? 0;
+  const partialCount = fulfillmentStats?.partialCount ?? fulfillmentStats?.partial ?? 0;
+  const completedCount = fulfillmentStats?.completedCount ?? fulfillmentStats?.completed ?? 0;
+  const archivedCount = fulfillmentStats?.archivedCount ?? fulfillmentStats?.archived ?? 0;
+  const totalWeightGrams = fulfillmentStats?.totalWeightGrams ?? (
+    (fulfillmentStats?.pendingWeight ?? 0) +
+    (fulfillmentStats?.partialWeight ?? 0) +
+    (fulfillmentStats?.completedWeight ?? 0)
+  );
 
   return (
     <div className="fulfillmentSummarySection">
@@ -730,27 +740,27 @@ function FulfillmentSummaryDisplay({ summary, harvests, contacts, compact = fals
         {fulfillmentStats && (
           <div className="fulfillmentStatsRow">
             <div className="fulfillmentStatItem">
-              <span className="fulfillmentStatNum">{fulfillmentStats.totalCount}</span>
+              <span className="fulfillmentStatNum">{totalCount}</span>
               <span className="fulfillmentStatLabel">总采收</span>
             </div>
             <div className="fulfillmentStatItem" style={{ color: '#2c5f8a' }}>
-              <span className="fulfillmentStatNum">{fulfillmentStats.pendingCount}</span>
+              <span className="fulfillmentStatNum">{pendingCount}</span>
               <span className="fulfillmentStatLabel">履约中</span>
             </div>
             <div className="fulfillmentStatItem" style={{ color: '#8a6a2c' }}>
-              <span className="fulfillmentStatNum">{fulfillmentStats.partialCount}</span>
+              <span className="fulfillmentStatNum">{partialCount}</span>
               <span className="fulfillmentStatLabel">部分取走</span>
             </div>
             <div className="fulfillmentStatItem" style={{ color: '#2f613a' }}>
-              <span className="fulfillmentStatNum">{fulfillmentStats.completedCount}</span>
+              <span className="fulfillmentStatNum">{completedCount}</span>
               <span className="fulfillmentStatLabel">履约完成</span>
             </div>
             <div className="fulfillmentStatItem" style={{ color: '#666' }}>
-              <span className="fulfillmentStatNum">{fulfillmentStats.archivedCount}</span>
+              <span className="fulfillmentStatNum">{archivedCount}</span>
               <span className="fulfillmentStatLabel">已归档</span>
             </div>
             <div className="fulfillmentStatItem">
-              <span className="fulfillmentStatNum">{formatWeight(fulfillmentStats.totalWeightGrams)}</span>
+              <span className="fulfillmentStatNum">{formatWeight(totalWeightGrams)}</span>
               <span className="fulfillmentStatLabel">总重量</span>
             </div>
           </div>

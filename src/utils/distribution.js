@@ -738,6 +738,9 @@ export const buildInitialDistribution = (harvest, beds, options = {}) => {
   const bed = findBedByName(beds, harvest.bed);
   const hasAdopter = bed && bed.adopter;
   const totalGrams = parseWeight(harvest.weight);
+  const selfPickupRatio = Number.isFinite(options.defaultSelfPickupRatio)
+    ? Math.max(0, Math.min(1, options.defaultSelfPickupRatio))
+    : null;
 
   const distribution = {
     selfPickup: '',
@@ -747,11 +750,15 @@ export const buildInitialDistribution = (harvest, beds, options = {}) => {
     distributionUpdatedAt: iso(0)
   };
 
-  if (hasAdopter && options.autoAssignSelfPickup && totalGrams > 0) {
-    const defaultSelfPickup = Math.min(totalGrams, 500);
-    distribution.selfPickup = defaultSelfPickup >= 1000
-      ? `${(defaultSelfPickup / 1000).toFixed(1)}kg`
-      : `${defaultSelfPickup}g`;
+  if (hasAdopter && totalGrams > 0 && (options.autoAssignSelfPickup || selfPickupRatio !== null)) {
+    const defaultSelfPickup = selfPickupRatio !== null
+      ? Math.round(totalGrams * selfPickupRatio)
+      : Math.min(totalGrams, 500);
+    distribution.selfPickup = `${defaultSelfPickup}g`;
+    const remaining = totalGrams - defaultSelfPickup;
+    if (remaining > 0) {
+      distribution.communityShare = `${remaining}g`;
+    }
   }
 
   return distribution;
