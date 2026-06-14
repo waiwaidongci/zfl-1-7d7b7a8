@@ -9,7 +9,11 @@
     "preview": "vite preview --host 0.0.0.0 --port 5171",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:ci": "vitest run --coverage --reporter=default --reporter=junit --outputFile.junit=./coverage/junit.xml",
+    "lint:build": "npm run build",
+    "ci": "npm run build && npm run test:coverage",
+    "quality": "npm run build && npm run test"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.7.0",

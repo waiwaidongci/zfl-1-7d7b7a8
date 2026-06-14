@@ -1,0 +1,112 @@
+name: zfl-1 CI Quality Gate
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build + Test + Coverage
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        shell: bash
+
+      - name: Build production bundle
+        id: build
+        run: npm run build
+        shell: bash
+
+      - name: Run Vitest with coverage and JUnit
+        id: test
+        run: npm run test:ci
+        shell: bash
+        continue-on-error: true
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage/
+            !coverage/node_modules/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload JUnit test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-report
+          path: coverage/junit.xml
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Check coverage thresholds
+        if: steps.test.outcome == 'success'
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            node -e "
+              const fs = require('fs');
+              const summary = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
+              const total = summary.total;
+              const thresholds = { lines: 70, functions: 70, branches: 60, statements: 70 };
+              let failed = false;
+              console.log('=== Coverage Threshold Check ===');
+              for (const [metric, threshold] of Object.entries(thresholds)) {
+                const actual = total[metric]?.pct || 0;
+                const status = actual >= threshold ? 'PASS' : 'FAIL';
+                console.log(\`  \${metric.toUpperCase()}: \${actual.toFixed(2)}% (threshold: \${threshold}%) [\${status}]\`);
+                if (status === 'FAIL') failed = true;
+              }
+              if (failed) {
+                console.error('\\n❌ Coverage below thresholds. See coverage report for details.');
+                process.exit(1);
+              } else {
+                console.log('\\n✅ All coverage thresholds passed.');
+              }
+            "
+          else
+            echo "⚠️  coverage-summary.json not found, skipping threshold check"
+          fi
+        shell: bash
+
+      - name: Final gate — fail build if tests failed
+        if: steps.test.outcome != 'success'
+        run: |
+          echo "❌ CI Quality Gate FAILED"
+          echo ""
+          echo "Troubleshooting steps:"
+          echo "  1. Check 'Run Vitest with coverage and JUnit' step output for failed tests"
+          echo "  2. Download 'junit-report' artifact for structured failure summary"
+          echo "  3. Download 'coverage-report' artifact and open coverage/index.html locally"
+          echo "  4. Run locally: npm run ci"
+          exit 1
+        shell: bash
