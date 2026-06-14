@@ -19,6 +19,7 @@
     "vite": "^7.0.0"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.8",
     "@vitest/ui": "^4.1.8",
     "vitest": "^4.1.8"
   }
