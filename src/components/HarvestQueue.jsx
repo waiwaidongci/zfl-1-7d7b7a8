@@ -27,17 +27,10 @@ import {
   getSelfPickupRemainingGrams,
   getFulfillmentStatus,
   getFulfillmentSummary,
-  generatePickupNoticeContact,
-  generateReissueNoticeContact,
-  confirmPickupContact,
   checkPickupNoticeExists,
   findRelatedPickupNotice,
   getAllPickupNotices,
   canReissuePickupNotice,
-  recordPartialPickup,
-  addDistributionHistory,
-  recordNoticeSent,
-  confirmFullPickup,
   hasCompleteContactInfo,
   getMissingContactInfo,
   splitHarvestByDateRange,
@@ -49,6 +42,7 @@ import {
   PICKUP_REISSUE_GRACE_DAYS,
   FULFILLMENT_STATUS
 } from '../utils/distribution';
+import { useDistributionOperations } from '../hooks/useDistributionOperations';
 import { isHarvestArchived } from '../utils/archive';
 
 export function HarvestQueue({
@@ -73,6 +67,19 @@ export function HarvestQueue({
   const [partialPickupHarvestId, setPartialPickupHarvestId] = useState(null);
   const [partialPickupWeight, setPartialPickupWeight] = useState('');
   const [groupBy, setGroupBy] = useState('none');
+
+  const {
+    sendPickupNotice,
+    reissuePickupNotice,
+    confirmPickup,
+    recordPartialPickup
+  } = useDistributionOperations({
+    harvests,
+    setHarvests,
+    contacts,
+    setContacts,
+    beds
+  });
 
   useEffect(() => {
     if (initialQueueKey !== undefined && initialQueueKey !== null) {
@@ -130,71 +137,14 @@ export function HarvestQueue({
   }, [baseFilteredHarvests, activeQueueKey]);
 
   const generatePickupNotice = (harvestId) => {
-    const harvest = harvests.find(h => h.id === harvestId);
-    if (!harvest || !harvest.distribution?.selfPickup) return;
-    if (checkPickupNoticeExists(contacts, harvestId)) return;
-    const contact = generatePickupNoticeContact(harvest, beds);
-    if (contact) {
-      setContacts([contact, ...contacts]);
-      setHarvests(harvests.map(h => {
-        if (h.id !== harvestId) return h;
-        if (!h.distribution) return h;
-        return {
-          ...h,
-          distribution: recordNoticeSent(h.distribution, 'initial')
-        };
-      }));
-    }
-  };
-
-  const confirmPickup = (harvestId) => {
-    setHarvests(harvests.map((h) => {
-      if (h.id !== harvestId) return h;
-      if (!h.distribution || !h.distribution.selfPickup) return h;
-      return {
-        ...h,
-        distribution: confirmFullPickup(h.distribution)
-      };
-    }));
-    if (checkPickupNoticeExists(contacts, harvestId)) {
-      setContacts(confirmPickupContact(contacts, harvestId));
-    }
-  };
-
-  const reissuePickupNotice = (harvestId) => {
-    const harvest = harvests.find(h => h.id === harvestId);
-    if (!harvest) return;
-    if (!canReissuePickupNotice(contacts, harvestId, PICKUP_REISSUE_GRACE_DAYS)) return;
-    const contact = generateReissueNoticeContact(harvest, beds, contacts);
-    if (contact && !contact.error) {
-      setContacts([contact, ...contacts]);
-      setHarvests(harvests.map(h => {
-        if (h.id !== harvestId) return h;
-        if (!h.distribution) return h;
-        return {
-          ...h,
-          distribution: recordNoticeSent(h.distribution, 'reissue')
-        };
-      }));
-    }
+    sendPickupNotice(harvestId);
   };
 
   const handlePartialPickup = (harvestId) => {
-    if (!isValidWeightFormat(partialPickupWeight)) return;
-    setHarvests(harvests.map((h) => {
-      if (h.id !== harvestId || !h.distribution) return h;
-      const updatedDist = recordPartialPickup(h.distribution, partialPickupWeight);
-      const distWithHistory = addDistributionHistory(updatedDist, 'partial_pickup', {
-        takenWeight: partialPickupWeight,
-        timestamp: new Date().toISOString()
-      });
-      return {
-        ...h,
-        distribution: distWithHistory
-      };
-    }));
-    setPartialPickupHarvestId(null);
-    setPartialPickupWeight('');
+    if (recordPartialPickup(harvestId, partialPickupWeight)) {
+      setPartialPickupHarvestId(null);
+      setPartialPickupWeight('');
+    }
   };
 
   const setThisWeekRange = () => {

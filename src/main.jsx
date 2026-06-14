@@ -48,7 +48,7 @@ import {
   getQueueStatsForWeek,
   getThisWeekRange,
   getThisWeekHarvests,
-  recordPartialPickup,
+  recordPartialPickup as recordPartialPickupUtil,
   generateReissueNoticeContact,
   canReissuePickupNotice,
   buildInitialDistribution,
@@ -69,6 +69,7 @@ import {
   normalizeHarvestDistribution,
   isValidWeightFormat
 } from './utils/distribution';
+import { useDistributionOperations } from './hooks/useDistributionOperations';
 import {
   markHarvestAsArchived,
   isHarvestArchived,
@@ -139,6 +140,20 @@ function App() {
   const [distInitialEndDate, setDistInitialEndDate] = useState('');
   const [distQueueRequestId, setDistQueueRequestId] = useState(0);
 
+  const {
+    sendPickupNotice,
+    reissuePickupNotice,
+    confirmPickup,
+    recordPartialPickup,
+    saveDistribution
+  } = useDistributionOperations({
+    harvests,
+    setHarvests,
+    contacts,
+    setContacts,
+    beds
+  });
+
   const weekWater = beds.filter((bed) => {
     const days = (new Date(bed.nextWater) - today) / 86400000;
     return days <= 7 && days >= -1;
@@ -183,71 +198,24 @@ function App() {
   };
 
   const saveDistributionFromDashboard = (harvestId, distribution) => {
-    const harvest = harvests.find((h) => h.id === harvestId);
-    let nextDistribution = distribution ? { ...distribution, distributionUpdatedAt: iso(0) } : null;
-    if (harvest && nextDistribution?.selfPickup && !checkPickupNoticeExists(contacts, harvestId)) {
-      const contact = generatePickupNoticeContact(
-        { ...harvest, distribution: nextDistribution },
-        beds
-      );
-      if (contact) {
-        setContacts([contact, ...contacts]);
-        nextDistribution = recordNoticeSent(nextDistribution, 'initial');
-      }
-    }
-    setHarvests(harvests.map((h) =>
-      h.id === harvestId ? {
-        ...h,
-        distribution: nextDistribution
-      } : h
-    ));
+    saveDistribution(harvestId, distribution);
     setDistEditingHarvest(null);
   };
 
   const generatePickupNoticeFromDashboard = (harvestId) => {
-    const harvest = harvests.find(h => h.id === harvestId);
-    if (!harvest || !harvest.distribution?.selfPickup) return;
-    if (checkPickupNoticeExists(contacts, harvestId)) return;
-    const contact = generatePickupNoticeContact(harvest, beds);
-    if (contact) {
-      setContacts([contact, ...contacts]);
-    }
+    sendPickupNotice(harvestId);
   };
 
   const confirmPickupFromDashboard = (harvestId) => {
-    setHarvests(harvests.map((h) => {
-      if (h.id !== harvestId) return h;
-      if (!h.distribution || !h.distribution.selfPickup) return h;
-      return {
-        ...h,
-        distribution: confirmFullPickup(h.distribution)
-      };
-    }));
-    if (checkPickupNoticeExists(contacts, harvestId)) {
-      setContacts(confirmPickupContact(contacts, harvestId));
-    }
+    confirmPickup(harvestId);
   };
 
   const handlePartialPickup = (harvestId, takenWeightStr) => {
-    setHarvests(harvests.map((h) => {
-      if (h.id !== harvestId) return h;
-      if (!h.distribution) return h;
-      const updatedDistribution = recordPartialPickup(h.distribution, takenWeightStr);
-      return {
-        ...h,
-        distribution: updatedDistribution
-      };
-    }));
+    recordPartialPickup(harvestId, takenWeightStr);
   };
 
   const handleReissuePickupNotice = (harvestId) => {
-    const harvest = harvests.find(h => h.id === harvestId);
-    if (!harvest) return;
-    if (!canReissuePickupNotice(contacts, harvestId, PICKUP_REISSUE_GRACE_DAYS)) return;
-    const contact = generateReissueNoticeContact(harvest, beds, contacts);
-    if (contact) {
-      setContacts([contact, ...contacts]);
-    }
+    reissuePickupNotice(harvestId);
   };
 
   const handleAddHarvestWithDistribution = (newHarvest, distribution) => {
@@ -274,12 +242,7 @@ function App() {
   };
 
   const handleSaveDistributionWithFulfillment = (harvestId, distribution) => {
-    setHarvests(harvests.map((h) =>
-      h.id === harvestId ? {
-        ...h,
-        distribution: distribution ? { ...distribution, distributionUpdatedAt: iso(0) } : null
-      } : h
-    ));
+    saveDistribution(harvestId, distribution);
     setDistEditingHarvest(null);
   };
 
@@ -2987,7 +2950,7 @@ function App() {
           isHarvestArchived={isHarvestArchived}
           canModifyArchivedHarvest={canModifyArchivedHarvest}
           buildInitialDistribution={buildInitialDistribution}
-          recordPartialPickup={recordPartialPickup}
+          recordPartialPickup={recordPartialPickupUtil}
           generateReissueNoticeContact={generateReissueNoticeContact}
           canReissuePickupNotice={canReissuePickupNotice}
           addDistributionHistory={addDistributionHistory}

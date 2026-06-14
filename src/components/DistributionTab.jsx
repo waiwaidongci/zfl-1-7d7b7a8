@@ -23,22 +23,15 @@ import {
   getPickupStatus,
   getPickupStats,
   getPickupWarnings,
-  generatePickupNoticeContact,
-  confirmPickupContact,
   checkPickupNoticeExists,
   findRelatedPickupNotice,
   getAllPickupNotices,
   canReissuePickupNotice,
-  generateReissueNoticeContact,
   getQueueStats,
   getThisWeekRange,
   buildInitialDistribution,
   getFulfillmentStatus,
   getFulfillmentSummary,
-  recordPartialPickup,
-  addDistributionHistory,
-  recordNoticeSent,
-  confirmFullPickup,
   validateDistributionWithPartial,
   hasCompleteContactInfo,
   getMissingContactInfo,
@@ -49,7 +42,7 @@ import {
   groupHarvestsByBed,
   groupHarvestsByCrop
 } from '../utils/distribution';
-import { iso } from '../data/seedData';
+import { useDistributionOperations } from '../hooks/useDistributionOperations';
 import { isHarvestArchived, canModifyArchivedHarvest } from '../utils/archive';
 
 const typeIcons = {
@@ -75,6 +68,24 @@ export function DistributionTab({
   const [splitMethod, setSplitMethod] = useState('simple');
   const [partialPickupWeight, setPartialPickupWeight] = useState('');
 
+  const {
+    sendPickupNotice,
+    reissuePickupNotice,
+    confirmPickup,
+    recordPartialPickup,
+    saveDistribution,
+    canSendPickupNotice,
+    canReissuePickupNotice,
+    canConfirmPickup,
+    canRecordPartialPickup
+  } = useDistributionOperations({
+    harvests,
+    setHarvests,
+    contacts,
+    setContacts,
+    beds
+  });
+
   useEffect(() => {
     if (queueRequestId > 0 && initialView) {
       setCurrentView(initialView);
@@ -86,71 +97,10 @@ export function DistributionTab({
   const pickupWarnings = useMemo(() => getPickupWarnings(harvests), [harvests]);
   const fulfillmentSummary = useMemo(() => getFulfillmentSummary(harvests), [harvests]);
 
-  const generatePickupNotice = (harvestId) => {
-    const harvest = harvests.find(h => h.id === harvestId);
-    if (!harvest || !harvest.distribution?.selfPickup) return;
-    if (checkPickupNoticeExists(contacts, harvestId)) return;
-    const contact = generatePickupNoticeContact(harvest, beds);
-    if (contact) {
-      setContacts([contact, ...contacts]);
-      setHarvests(harvests.map(h => {
-        if (h.id !== harvestId) return h;
-        if (!h.distribution) return h;
-        return {
-          ...h,
-          distribution: recordNoticeSent(h.distribution, 'initial')
-        };
-      }));
-    }
-  };
-
-  const reissuePickupNotice = (harvestId) => {
-    const harvest = harvests.find(h => h.id === harvestId);
-    if (!harvest) return;
-    if (!canReissuePickupNotice(contacts, harvestId, PICKUP_REISSUE_GRACE_DAYS)) return;
-    const contact = generateReissueNoticeContact(harvest, beds, contacts);
-    if (contact && !contact.error) {
-      setContacts([contact, ...contacts]);
-      setHarvests(harvests.map(h => {
-        if (h.id !== harvestId) return h;
-        if (!h.distribution) return h;
-        return {
-          ...h,
-          distribution: recordNoticeSent(h.distribution, 'reissue')
-        };
-      }));
-    }
-  };
-
-  const confirmPickup = (harvestId) => {
-    setHarvests(harvests.map((h) => {
-      if (h.id !== harvestId) return h;
-      if (!h.distribution || !h.distribution.selfPickup) return h;
-      return {
-        ...h,
-        distribution: confirmFullPickup(h.distribution)
-      };
-    }));
-    if (checkPickupNoticeExists(contacts, harvestId)) {
-      setContacts(confirmPickupContact(contacts, harvestId));
-    }
-  };
-
   const handlePartialPickup = (harvestId, takenWeightStr) => {
-    if (!isValidWeightFormat(takenWeightStr)) return;
-    setHarvests(harvests.map((h) => {
-      if (h.id !== harvestId || !h.distribution) return h;
-      const updatedDist = recordPartialPickup(h.distribution, takenWeightStr);
-      const distWithHistory = addDistributionHistory(updatedDist, 'partial_pickup', {
-        takenWeight: takenWeightStr,
-        timestamp: iso(0)
-      });
-      return {
-        ...h,
-        distribution: distWithHistory
-      };
-    }));
-    setPartialPickupWeight('');
+    if (recordPartialPickup(harvestId, takenWeightStr)) {
+      setPartialPickupWeight('');
+    }
   };
 
   const applyQuickSplit = (harvestId, splitType) => {
@@ -190,25 +140,8 @@ export function DistributionTab({
     return result.sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [harvests, query, statusFilter]);
 
-  const saveDistribution = (harvestId, distribution) => {
-    const harvest = harvests.find((h) => h.id === harvestId);
-    let nextDistribution = distribution ? { ...distribution, distributionUpdatedAt: iso(0) } : null;
-    if (harvest && nextDistribution?.selfPickup && !checkPickupNoticeExists(contacts, harvestId)) {
-      const contact = generatePickupNoticeContact(
-        { ...harvest, distribution: nextDistribution },
-        beds
-      );
-      if (contact) {
-        setContacts([contact, ...contacts]);
-        nextDistribution = recordNoticeSent(nextDistribution, 'initial');
-      }
-    }
-    setHarvests(harvests.map((h) =>
-      h.id === harvestId ? {
-        ...h,
-        distribution: nextDistribution
-      } : h
-    ));
+  const handleSaveDistribution = (harvestId, distribution) => {
+    saveDistribution(harvestId, distribution);
     setEditingHarvest(null);
   };
 
@@ -253,7 +186,7 @@ export function DistributionTab({
           <DistributionModal
             harvest={editingHarvest}
             onClose={() => setEditingHarvest(null)}
-            onSave={(dist) => saveDistribution(editingHarvest.id, dist)}
+            onSave={(dist) => handleSaveDistribution(editingHarvest.id, dist)}
             onConfirmPickup={() => {
               confirmPickup(editingHarvest.id);
               setEditingHarvest(null);
@@ -385,8 +318,8 @@ export function DistributionTab({
                       请尽快联系认养人
                     </span>
                     <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                      {!noticeSent && (
-                        <button type="button" className="miniBtn" style={{ background: '#e8f0fa', color: '#2c5f8a', borderColor: '#a0c0e0' }} onClick={() => generatePickupNotice(h.id)}>
+                      {canSendPickupNotice(h.id) && (
+                        <button type="button" className="miniBtn" style={{ background: '#e8f0fa', color: '#2c5f8a', borderColor: '#a0c0e0' }} onClick={() => sendPickupNotice(h.id)}>
                           <Bell size={12} />发送通知
                         </button>
                       )}
@@ -432,8 +365,8 @@ export function DistributionTab({
                       待认养人取走
                     </span>
                     <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                      {!noticeSent && (
-                        <button type="button" className="miniBtn" style={{ marginTop: 0, marginLeft: 0, background: '#e8f0fa', color: '#2c5f8a', borderColor: '#a0c0e0' }} onClick={() => generatePickupNotice(h.id)}>
+                      {canSendPickupNotice(h.id) && (
+                        <button type="button" className="miniBtn" style={{ marginTop: 0, marginLeft: 0, background: '#e8f0fa', color: '#2c5f8a', borderColor: '#a0c0e0' }} onClick={() => sendPickupNotice(h.id)}>
                           <Bell size={12} />发送通知
                         </button>
                       )}
@@ -762,18 +695,18 @@ export function DistributionTab({
                     <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap' }}>
                       {pickup.key === 'pending' && !harvest.archived && (
                         <>
-                          {!checkPickupNoticeExists(contacts, harvest.id) && hasContactInfo && (
+                          {canSendPickupNotice(harvest.id) && (
                             <button
                               type="button"
                               className="miniBtn pickupNoticeBtn"
-                              onClick={() => generatePickupNotice(harvest.id)}
+                              onClick={() => sendPickupNotice(harvest.id)}
                               style={{ background: '#e8f0fa', color: '#2c5f8a', borderColor: '#a0c0e0' }}
                             >
                               <Bell size={12} />
                               发送取菜通知
                             </button>
                           )}
-                          {checkPickupNoticeExists(contacts, harvest.id) && canReissue && hasContactInfo && (
+                          {canReissuePickupNotice(harvest.id) && (
                             <button
                               type="button"
                               className="miniBtn"
@@ -784,7 +717,7 @@ export function DistributionTab({
                               补发通知
                             </button>
                           )}
-                          {checkPickupNoticeExists(contacts, harvest.id) && !canReissue && (
+                          {checkPickupNoticeExists(contacts, harvest.id) && !canReissuePickupNotice(harvest.id) && (
                             <span className="muted" style={{ fontSize: '12px', color: '#8a7a6a' }}>
                               {PICKUP_REISSUE_GRACE_DAYS}天内请勿重复通知
                             </span>
@@ -857,7 +790,7 @@ export function DistributionTab({
         <DistributionModal
           harvest={editingHarvest}
           onClose={() => setEditingHarvest(null)}
-          onSave={(dist) => saveDistribution(editingHarvest.id, dist)}
+          onSave={(dist) => handleSaveDistribution(editingHarvest.id, dist)}
           onConfirmPickup={() => {
             confirmPickup(editingHarvest.id);
             setEditingHarvest(null);
